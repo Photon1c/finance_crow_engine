@@ -57,7 +57,28 @@ BOUNDARY_COLUMNS = [
     "rupture_pressure_score",
     "regime_label",
     "regime_persistence",
+    "T_a",
+    "T_a_norm",
+    "T_a_regime",
+    "R_o",
+    "T_v",
+    "observer_profile",
 ]
+
+OBSERVER_PROFILES = {
+    "passenger": 0.25,
+    "pilot": 0.55,
+    "mechanic": 0.85,
+}
+
+T_A_REGIMES = (
+    "TAKEOFF_BEGINNING",
+    "ACCELERATION_POSITIVE",
+    "CRUISE",
+    "DECELERATION",
+    "THRUST_LOSS",
+    "DISSIPATION_CASCADE",
+)
 
 WEEKLY_STANCE_SCORE_KEYS = (
     "direction_score",
@@ -470,6 +491,126 @@ def compute_weekly_stance_metrics(
     return result
 
 
+def classify_t_a_regime(t_a_norm: float) -> str:
+    """
+    Classify transitional acceleration from normalized second pressure derivative.
+
+    Positive Ta → takeoff beginning; near zero → cruise; negative → thrust loss;
+    strongly negative → dissipation cascade.
+    """
+    if t_a_norm is None or pd.isna(t_a_norm):
+        return ""
+    if t_a_norm > 0.75:
+        return "TAKEOFF_BEGINNING"
+    if t_a_norm < -1.25:
+        return "DISSIPATION_CASCADE"
+    if t_a_norm < -0.35:
+        return "THRUST_LOSS"
+    if abs(t_a_norm) < 0.25:
+        return "CRUISE"
+    if t_a_norm > 0.0:
+        return "ACCELERATION_POSITIVE"
+    return "DECELERATION"
+
+
+def resolve_observer_profile(r_o: float) -> str:
+    """Map observational resolution to passenger / pilot / mechanic tiers."""
+    if pd.isna(r_o):
+        return ""
+    if r_o >= 0.70:
+        return "mechanic"
+    if r_o >= 0.42:
+        return "pilot"
+    return "passenger"
+
+
+def compute_observational_resolution(
+    row: pd.Series,
+    *,
+    t_a_norm: float,
+) -> float:
+    """
+    Observational resolution R_o: ability to perceive latent instability
+    before visible rupture. Higher R_o → earlier transition detection.
+    """
+    b_s = float(row.get("B_s", 0.0) or 0.0)
+    rupture = float(row.get("rupture_pressure_score", 0.0) or 0.0)
+    hidden = float(row.get("hidden_process_uncertainty", 0.5) or 0.5)
+    regime = str(row.get("regime_label", "IDLE"))
+
+    early_boundary = _clip01(b_s * 2.5)
+    if regime == "RUPTURE_CANDIDATE":
+        early_boundary *= 0.35
+
+    ta_signal = _clip01(abs(t_a_norm) * 0.65) if not pd.isna(t_a_norm) else 0.0
+    latent_rupture = _clip01(rupture * 1.4)
+    if regime == "RUPTURE_CANDIDATE":
+        latent_rupture *= 0.25
+
+    uncertainty_read = _clip01(hidden * 0.75)
+    persistence = _safe_int(row.get("regime_persistence"), default=1)
+    persistence_mask = _clip01(max(persistence - 4, 0) * 0.08)
+
+    composite = (
+        early_boundary * 0.30
+        + ta_signal * 0.25
+        + latent_rupture * 0.20
+        + uncertainty_read * 0.15
+        + persistence_mask * 0.10
+    )
+    return _clip01(0.22 + composite * 0.73)
+
+
+def compute_visibility_horizon(r_o: float, *, base_sessions: float = 10.0) -> float:
+    """
+    Observer Differential Theory: T_v = f(R_o).
+
+    Higher observational resolution → lower T_v (earlier detection of latent rupture).
+    """
+    if pd.isna(r_o):
+        return float("nan")
+    return round(max(1.0, base_sessions * (1.0 - r_o) ** 1.4), 1)
+
+
+def compute_observer_differential_metrics(
+    df: pd.DataFrame,
+    *,
+    pressure_col: str = "rupture_pressure_score",
+    ta_window: int = 20,
+    visibility_base: float = 10.0,
+) -> pd.DataFrame:
+    """
+    Attach transitional acceleration (T_a), observational resolution (R_o),
+    and visibility horizon (T_v) to each row with enough pressure history.
+    """
+    result = df.copy()
+    for col in ("T_a", "T_a_norm", "T_a_regime", "R_o", "T_v", "observer_profile"):
+        result[col] = pd.NA
+
+    if pressure_col not in result.columns:
+        return result
+
+    pressure = result[pressure_col].astype(float)
+    d_pressure = pressure.diff()
+    result["T_a"] = d_pressure.diff()
+
+    ta_std = result["T_a"].rolling(ta_window, min_periods=max(5, ta_window // 4)).std()
+    result["T_a_norm"] = result["T_a"] / ta_std.where(ta_std > 0)
+
+    for idx in result.index:
+        t_a_norm = result.at[idx, "T_a_norm"]
+        if pd.isna(t_a_norm):
+            continue
+        result.at[idx, "T_a_regime"] = classify_t_a_regime(float(t_a_norm))
+        row = result.loc[idx]
+        r_o = compute_observational_resolution(row, t_a_norm=float(t_a_norm))
+        result.at[idx, "R_o"] = r_o
+        result.at[idx, "T_v"] = compute_visibility_horizon(r_o, base_sessions=visibility_base)
+        result.at[idx, "observer_profile"] = resolve_observer_profile(r_o)
+
+    return result
+
+
 def compute_boundary_metrics(
     df: pd.DataFrame,
     lookback: int = 20,
@@ -558,6 +699,28 @@ def write_report(
         f"- **Latest rupture_pressure_score:** {latest['rupture_pressure_score']:.4f}",
         f"- **Latest regime_label:** {latest['regime_label']}",
         f"- **Latest regime_persistence:** {_safe_int(latest.get('regime_persistence'))} sessions",
+        "",
+        "## Transitional Acceleration & Observer Differential",
+        "",
+        "_Complex systems do not fail equally for all observers. Rupture becomes visible at "
+        "different times depending on an observer's proximity to the system's internal pressure "
+        "variables. The system changes before most observers are capable of perceiving the change._",
+        "",
+        f"- **T_a (transitional acceleration):** {latest.get('T_a', float('nan')):.6f}",
+        f"- **T_a_norm:** {latest.get('T_a_norm', float('nan')):.4f}",
+        f"- **T_a_regime:** {latest.get('T_a_regime', '')}",
+        f"- **R_o (observational resolution):** {latest.get('R_o', float('nan')):.4f}",
+        f"- **T_v (visibility horizon, sessions):** {latest.get('T_v', float('nan'))}",
+        f"- **Observer profile:** {latest.get('observer_profile', '')}",
+        "",
+        "### T_a Regime Key",
+        "",
+        "| Regime | Meaning |",
+        "| :--- | :--- |",
+        "| TAKEOFF_BEGINNING | Positive acceleration — thrust building |",
+        "| CRUISE | Near-zero acceleration — stable flight |",
+        "| THRUST_LOSS | Negative acceleration — momentum fading |",
+        "| DISSIPATION_CASCADE | Strong negative — energy bleeding out |",
         "",
     ]
 
@@ -729,6 +892,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             metrics_df,
             weekly_window=args.weekly_window,
         )
+        metrics_df = compute_observer_differential_metrics(metrics_df)
     except (FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -782,6 +946,11 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"rupture_prob={latest['rupture_probability']:.2f}"
         )
         print(f"  Action: {latest['recommended_action']}")
+    if pd.notna(latest.get("T_a_regime")) and str(latest.get("T_a_regime", "")):
+        print(
+            f"  Observer: R_o={latest['R_o']:.3f} | T_v={latest['T_v']} sessions | "
+            f"profile={latest['observer_profile']} | T_a_regime={latest['T_a_regime']}"
+        )
     return 0
 
 

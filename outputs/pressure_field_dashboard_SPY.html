@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pressure Field Dashboard — SPY</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #070b14;
+      --panel: #10182b;
+      --panel-2: #162038;
+      --text: #e8eefc;
+      --muted: #8fa3c8;
+      --border: rgba(120, 160, 255, 0.18);
+      --glow: rgba(0, 212, 255, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(ellipse 120% 80% at 10% -10%, #1a1040 0%, transparent 50%),
+                  radial-gradient(ellipse 80% 60% at 90% 0%, #0a2840 0%, transparent 45%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem clamp(1rem, 4vw, 3rem) 3rem;
+    }
+    .hero {
+      display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end;
+      justify-content: space-between; margin-bottom: 2rem;
+      padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);
+    }
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      background: linear-gradient(135deg, #00d4ff, #9d4edd, #ff3cac);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero .meta { color: var(--muted); font-size: 0.95rem; line-height: 1.6; }
+    .spot-pill {
+      background: linear-gradient(135deg, #162038, #1e2d50);
+      border: 1px solid var(--border); border-radius: 1rem;
+      padding: 1rem 1.5rem; text-align: right;
+      box-shadow: 0 0 40px var(--glow);
+    }
+    .spot-pill .price { font-size: 2rem; font-weight: 700; color: #00d4ff; }
+    .quote-panel {
+      background: linear-gradient(135deg, rgba(157,78,221,0.12), rgba(0,212,255,0.08));
+      border: 1px solid var(--border); border-radius: 1rem;
+      padding: 1.25rem 1.5rem; margin-bottom: 2rem;
+      font-style: italic; color: #c5d4f0; line-height: 1.7;
+    }
+    .quote-panel strong { color: #ffd700; font-style: normal; }
+    .canopy-row {
+      display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 2rem;
+    }
+    .canopy-chip {
+      flex: 1 1 140px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 0.75rem;
+      padding: 0.85rem 1rem;
+    }
+    .chip-label { display: block; font-size: 0.72rem; text-transform: uppercase;
+                   letter-spacing: 0.08em; color: var(--muted); }
+    .chip-value { display: block; font-size: 1.25rem; font-weight: 700; margin: 0.2rem 0; }
+    .chip-sub { font-size: 0.78rem; color: #7ec8e3; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem; margin-bottom: 2rem;
+    }
+    .metric-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 1rem; padding: 1.25rem;
+      border-top: 3px solid var(--accent);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .metric-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 0 24px color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+    .metric-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+                   color: var(--accent); }
+    .metric-card h3 { font-size: 1.15rem; margin: 0.3rem 0 0.6rem; }
+    .metric-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); }
+    .metric-regime { font-size: 0.82rem; color: #a8c4e8; margin: 0.25rem 0 0.5rem;
+                      font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric-detail { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.75rem; }
+    .status-good { --accent: #39ff14; }
+    .status-warn { --accent: #ffb347; }
+    .status-danger { --accent: #ff4d6d; }
+    .status-neutral { --accent: #00d4ff; }
+    .chart-panel {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 1rem; padding: 1.5rem; margin-bottom: 2rem;
+    }
+    .chart-panel h2 { margin-bottom: 1rem; font-size: 1.1rem; color: #b8cff5; }
+    .stance-panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 1rem; padding: 1.5rem;
+    }
+    .stance-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem; margin: 1rem 0;
+    }
+    .stance-grid span { display: block; font-size: 0.75rem; color: var(--muted);
+                         text-transform: uppercase; letter-spacing: 0.06em; }
+    .stance-grid strong { font-size: 1rem; color: #e8eefc; }
+    .stance-action { color: #c5d4f0; line-height: 1.6; font-size: 0.92rem; }
+    .observer-table {
+      width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.88rem;
+    }
+    .observer-table th, .observer-table td {
+      padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); text-align: left;
+    }
+    .observer-table th { color: var(--muted); font-weight: 500; }
+    footer { margin-top: 2rem; color: var(--muted); font-size: 0.78rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <h1>Pressure Field Dashboard</h1>
+      <p class="meta">SPY · as of 2026-06-15 · chain 06_15_2026<br/>
+      Multi-sensor market state · pressure accumulation · transition · rupture · dissipation</p>
+    </div>
+    <div class="spot-pill">
+      <div class="meta">Spot</div>
+      <div class="price">$754.83</div>
+    </div>
+  </header>
+
+  <blockquote class="quote-panel">
+    <strong>Observer Differential Theory</strong> — Complex systems do not fail equally for all observers. Rupture becomes visible at different times depending on an observer's proximity to the system's internal pressure variables. The system changes before most observers are capable of perceiving the change.
+  </blockquote>
+
+  <section class="canopy-row">
+    
+        <div class="canopy-chip">
+          <span class="chip-label">Boundary Stability</span>
+          <span class="chip-value">0.3000</span>
+          <span class="chip-sub">Containment stress from boundary tests</span>
+        </div>
+        
+
+        <div class="canopy-chip">
+          <span class="chip-label">Injection Energy</span>
+          <span class="chip-value">1.1100</span>
+          <span class="chip-sub">Volume vs rolling average</span>
+        </div>
+        
+
+        <div class="canopy-chip">
+          <span class="chip-label">Transitional Acceleration</span>
+          <span class="chip-value">0.6999</span>
+          <span class="chip-sub">ACCELERATION_POSITIVE</span>
+        </div>
+        
+
+        <div class="canopy-chip">
+          <span class="chip-label">Observational Resolution</span>
+          <span class="chip-value">0.579</span>
+          <span class="chip-sub">pilot</span>
+        </div>
+        
+
+        <div class="canopy-chip">
+          <span class="chip-label">Visibility Horizon</span>
+          <span class="chip-value">3.0 sessions</span>
+          <span class="chip-sub">T_v = f(R_o)</span>
+        </div>
+        
+
+        <div class="canopy-chip">
+          <span class="chip-label">Rupture Pressure</span>
+          <span class="chip-value">0.3330</span>
+          <span class="chip-sub">PRESSURE_BUILDING</span>
+        </div>
+        
+  </section>
+
+  
+        <section class="stance-panel">
+          <h2>CanopyEnto Weekly Stance</h2>
+          <div class="stance-grid">
+            <div><span>Quadrant</span><strong>bullish / actionable</strong></div>
+            <div><span>Gate</span><strong>ACTIONABLE DIRECTIONAL STANCE</strong></div>
+            <div><span>Confidence</span><strong>+0.28</strong></div>
+            <div><span>Direction</span><strong>bullish</strong></div>
+          </div>
+          <p class="stance-action">Actionable bullish stance. Packet completion and continuation probability support a directional position with normal sizing.</p>
+        </section>
+        
+
+  <section class="grid">
+    
+        <article class="metric-card status-warn" style="--accent:#00d4ff">
+          <header>
+            <span class="metric-tag">Pressure Acceleration Detector</span>
+            <h3>MACD</h3>
+          </header>
+          <div class="metric-value">-2.2961</div>
+          <div class="metric-regime">DECEL_DOWN</div>
+          <p class="metric-detail">Line 4.5161 · Signal 6.8121</p>
+          <canvas id="chart-macd" height="80"></canvas>
+        </article>
+        
+
+        <article class="metric-card status-neutral" style="--accent:#ff3cac">
+          <header>
+            <span class="metric-tag">Local Energy Saturation Detector</span>
+            <h3>RSI</h3>
+          </header>
+          <div class="metric-value">60.4</div>
+          <div class="metric-regime">ENERGY_ACCUMULATING</div>
+          <p class="metric-detail">Energy load 0.21</p>
+          <canvas id="chart-rsi" height="80"></canvas>
+        </article>
+        
+
+        <article class="metric-card status-warn" style="--accent:#ffb347">
+          <header>
+            <span class="metric-tag">Internal Force Imbalance Detector</span>
+            <h3>CVD</h3>
+          </header>
+          <div class="metric-value">0.205</div>
+          <div class="metric-regime">IMBALANCE_BUILDING</div>
+          <p class="metric-detail">Cumulative delta slope (5d)</p>
+          <canvas id="chart-cvd" height="80"></canvas>
+        </article>
+        
+
+        <article class="metric-card status-neutral" style="--accent:#39ff14">
+          <header>
+            <span class="metric-tag">External Energy Injection</span>
+            <h3>Volume</h3>
+          </header>
+          <div class="metric-value">1.11x</div>
+          <div class="metric-regime">ELEVATED_FLOW</div>
+          <p class="metric-detail">E_i 1.110 · pct 66%</p>
+          <canvas id="chart-volume" height="80"></canvas>
+        </article>
+        
+
+        <article class="metric-card status-neutral" style="--accent:#9d4edd">
+          <header>
+            <span class="metric-tag">Equilibrium Attractor Field</span>
+            <h3>VWAP</h3>
+          </header>
+          <div class="metric-value">$744.35</div>
+          <div class="metric-regime">ABOVE_ATTRACTOR</div>
+          <p class="metric-detail">Distance +1.41% · pull 1.41</p>
+          <canvas id="chart-vwap" height="80"></canvas>
+        </article>
+        
+
+        <article class="metric-card status-good" style="--accent:#ffd700">
+          <header>
+            <span class="metric-tag">Phase Boundary Transition</span>
+            <h3>Gamma Flip</h3>
+          </header>
+          <div class="metric-value">$740.00</div>
+          <div class="metric-regime">ABOVE_FLIP_POSITIVE_GAMMA</div>
+          <p class="metric-detail">Spot dist +1.96% · net Γ 5014</p>
+          <canvas id="chart-gamma" height="80"></canvas>
+        </article>
+        
+  </section>
+
+  <section class="chart-panel">
+    <h2>Pressure &amp; Acceleration Timeline</h2>
+    <canvas id="chart-composite" height="120"></canvas>
+  </section>
+
+  <section class="chart-panel">
+    <h2>Observer Resolution Ladder</h2>
+    <table class="observer-table">
+      <thead><tr><th>Observer</th><th>R_o</th><th>Perceives</th><th>T_v (sessions)</th></tr></thead>
+      <tbody>
+        <tr><td>Passenger</td><td>0.25</td><td>Final rupture only</td><td>6.7</td></tr>
+        <tr><td>Pilot</td><td>0.55</td><td>Regime transitions, saturation extremes</td><td>3.3</td></tr>
+        <tr><td>Mechanic</td><td>0.85</td><td>Latent T_a shifts, B_s buildup, hidden uncertainty</td><td>0.7</td></tr>
+        <tr style="color:#00d4ff"><td><strong>Current (pilot)</strong></td>
+            <td><strong>0.579</strong></td>
+            <td>Computed from live latent signals</td>
+            <td><strong>3.0</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>Generated 2026-06-15 23:27 · finance_crow_engine · not live trading</footer>
+
+  <script>
+    const DATA = {"dates": ["2025-12-22", "2025-12-23", "2025-12-24", "2025-12-26", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23", "2026-02-24", "2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15"], "close": [684.83, 687.96, 690.38, 690.31, 687.85, 687.01, 681.92, 683.17, 687.72, 691.81, 689.58, 689.51, 694.07, 695.16, 693.77, 690.36, 692.24, 691.66, 677.58, 685.4, 688.98, 689.23, 692.73, 695.49, 695.42, 694.04, 691.97, 695.41, 689.53, 686.19, 677.62, 690.62, 693.95, 692.12, 691.96, 681.27, 681.75, 682.85, 686.29, 684.48, 689.43, 682.39, 687.35, 693.15, 689.3, 685.99, 686.38, 680.33, 685.13, 681.31, 672.38, 678.27, 677.18, 676.33, 666.06, 662.29, 669.03, 670.79, 661.43, 659.8, 648.57, 655.38, 653.18, 656.82, 645.09, 634.09, 631.97, 650.34, 655.24, 655.83, 658.93, 659.22, 676.01, 679.91, 679.46, 686.1, 694.46, 699.94, 701.66, 710.14, 710.14, 704.08, 711.21, 708.45, 713.94, 715.17, 711.69, 711.58, 718.66, 720.65, 718.01, 723.77, 733.83, 731.58, 737.62, 739.3, 738.18, 742.31, 748.17, 739.17, 738.65, 733.73, 741.25, 742.72, 745.64, 750.59, 750.46, 754.6, 756.48, 758.54, 759.57, 754.24, 757.09, 737.55, 739.22, 737.05, 725.43, 737.76, 741.75, 754.83], "macd_hist": [-0.483229, -0.010515, 0.420241, 0.642254, 0.567804, 0.413531, -0.054854, -0.290837, -0.157522, 0.171276, 0.201645, 0.180758, 0.423905, 0.597382, 0.55847, 0.25829, 0.147096, 0.002857, -1.016078, -1.129919, -0.938507, -0.776178, -0.431409, -0.036607, 0.188339, 0.211, 0.061169, 0.162575, -0.179017, -0.617859, -1.427009, -1.046044, -0.553842, -0.345758, -0.219298, -0.822127, -1.135742, -1.209488, -0.976933, -0.897401, -0.484498, -0.648358, -0.397843, 0.153775, 0.249012, 0.087098, 0.008423, -0.42496, -0.36456, -0.547108, -1.197224, -1.157816, -1.131102, -1.095849, -1.655759, -2.140764, -1.877793, -1.473322, -1.70766, -1.832903, -2.491674, -2.293368, -2.138026, -1.64019, -1.930922, -2.649683, -3.026307, -1.854221, -0.628274, 0.293544, 1.135929, 1.702452, 3.115482, 4.155304, 4.619618, 5.140814, 5.76839, 6.232801, 6.316439, 6.574042, 6.371022, 5.488678, 5.056048, 4.285287, 3.859725, 3.392177, 2.614509, 1.892337, 1.697343, 1.514294, 1.049401, 0.965902, 1.398043, 1.341943, 1.508753, 1.524851, 1.263477, 1.174053, 1.30482, 0.61544, -0.012083, -0.84871, -0.976715, -1.037731, -0.95866, -0.664195, -0.572841, -0.339776, -0.17356, -0.046074, -0.015174, -0.452277, -0.636743, -2.080617, -2.879858, -3.471655, -4.49757, -4.203119, -3.619183, -2.296063], "rsi": [56.215165, 58.750894, 60.648458, 60.561673, 57.450372, 56.385155, 50.299194, 51.678566, 56.419815, 60.200156, 57.282526, 57.188829, 61.595706, 62.587089, 60.444249, 55.430336, 57.522377, 56.63909, 40.414822, 49.130396, 52.55205, 52.790856, 56.120534, 58.600237, 58.509925, 56.656159, 53.89767, 57.592853, 50.187997, 46.528504, 38.725869, 51.902203, 54.595604, 52.844284, 52.685155, 43.302837, 43.786906, 44.946922, 48.524411, 46.801123, 51.838546, 45.27265, 50.070958, 55.035555, 51.383229, 48.408807, 48.784991, 43.487567, 48.285573, 45.010385, 38.44537, 44.223927, 43.41173, 42.752341, 35.697215, 33.511023, 40.523949, 42.237254, 36.255666, 35.317653, 29.629906, 36.326573, 35.162421, 38.664764, 32.560844, 28.083469, 27.304203, 42.256163, 45.4775, 45.869077, 47.982959, 48.186803, 58.360787, 60.310304, 59.961461, 63.331758, 67.088105, 69.307653, 69.9917, 73.166949, 73.166949, 67.267795, 70.301738, 67.686342, 70.071434, 70.595103, 67.021992, 66.906716, 70.431822, 71.355412, 68.307122, 71.198155, 75.416111, 72.846544, 75.281326, 75.927882, 74.528308, 76.265662, 78.505844, 67.905064, 67.339281, 62.069726, 66.39794, 67.18619, 68.754168, 71.261196, 71.09985, 73.182273, 74.095109, 75.095441, 75.602733, 67.895559, 69.675686, 49.436337, 50.752991, 48.968645, 40.714094, 50.289646, 52.938585, 60.390153], "cvd": [3791612190.0, 3856452140.0, 3895897700.0, 3854284350.0, 3791724850.0, 3744564180.0, 3670419380.0, 3759796580.0, 3831723770.0, 3900997600.0, 3825409260.0, 3761390060.0, 3841515530.0, 3905491530.0, 3827181800.0, 3732505120.0, 3810367090.0, 3731077890.0, 3619454590.0, 3747299090.0, 3824411330.0, 3887470910.0, 3947944720.0, 4003450870.0, 3942278700.0, 3844792500.0, 3742957400.0, 3822243920.0, 3714339320.0, 3609134720.0, 3495523920.0, 3584651490.0, 3658536680.0, 3593350950.0, 3516997080.0, 3398168080.0, 3494435570.0, 3575790230.0, 3649360570.0, 3590711210.0, 3690745210.0, 3600187120.0, 3673985850.0, 3730355330.0, 3658684340.0, 3575375470.0, 3662852670.0, 3557849570.0, 3637031810.0, 3530425310.0, 3429738310.0, 3532406010.0, 3450900690.0, 3382459020.0, 3273576820.0, 3176376580.0, 3258399710.0, 3345527750.0, 3263465170.0, 3152192670.0, 2988575170.0, 3123377870.0, 3026920390.0, 3117574180.0, 3021079800.0, 2917430400.0, 2818154550.0, 2970688650.0, 3068530120.0, 3136888830.0, 3175994590.0, 3245974950.0, 3339581060.0, 3396715510.0, 3354462050.0, 3408647870.0, 3472128400.0, 3530368780.0, 3580341140.0, 3590341139.0, null, 3531399759.0, 3573918259.0, 3517744269.0, 3562926229.0, 3596062169.0, 3552944729.0, 3511085499.0, 3578326449.0, 3621376299.0, 3569425739.0, 3606358969.0, 3659647909.0, 3607923269.0, 3655150359.0, 3699174309.0, 3644989039.0, 3689189239.0, 3734496839.0, 3674086069.0, 3626242199.0, 3571986289.0, 3617754329.0, 3661086559.0, 3702848569.0, 3743972189.0, 3701865899.0, 3743428459.0, 3798504199.0, 3842139129.0, 3873720979.0, 3822318459.0, 3872241499.0, 3778252079.0, 3827571219.0, 3739887699.0, 3679546349.0, 3765876869.0, 3822956399.0, 3883132829.0], "volume": [69556730.0, 64839950.0, 39445560.0, 41613350.0, 62559500.0, 47160670.0, 74144800.0, 89377200.0, 71927190.0, 69273830.0, 75588340.0, 64019200.0, 80125470.0, 63976000.0, 78309730.0, 94676680.0, 77861970.0, 79289200.0, 111623300.0, 127844500.0, 77112240.0, 63059580.0, 60473810.0, 55506150.0, 61172170.0, 97486200.0, 101835100.0, 79286520.0, 107904600.0, 105204600.0, 113610800.0, 89127570.0, 73885190.0, 65185730.0, 76353870.0, 118829000.0, 96267490.0, 81354660.0, 73570340.0, 58649360.0, 100034000.0, 90558090.0, 73798730.0, 56369480.0, 71670990.0, 83308870.0, 87477200.0, 105003100.0, 79182240.0, 106606500.0, 100687000.0, 102667700.0, 81505320.0, 68441670.0, 108882200.0, 97200240.0, 82023130.0, 87128040.0, 82062580.0, 111272500.0, 163617500.0, 134802700.0, 96457480.0, 90653790.0, 96494380.0, 103649400.0, 99275850.0, 152534100.0, 97841470.0, 68358710.0, 39105760.0, 69980360.0, 93606110.0, 57134450.0, 42253460.0, 54185820.0, 63480530.0, 58240380.0, 49972360.0, 9999999.0, null, 58941380.0, 42518500.0, 56173990.0, 45181960.0, 33135940.0, 43117440.0, 41859230.0, 67240950.0, 43049850.0, 51950560.0, 36933230.0, 53288940.0, 51724640.0, 47227090.0, 44023950.0, 54185270.0, 44200200.0, 45307600.0, 60410770.0, 47843870.0, 54255910.0, 45768040.0, 43332230.0, 41762010.0, 41123620.0, 42106290.0, 41562560.0, 55075740.0, 43634930.0, 31581850.0, 51402520.0, 49923040.0, 93989420.0, 49319140.0, 87683520.0, 60341350.0, 86330520.0, 57079530.0, 60176430.0], "vwap": [680.328175, 681.269758, 681.972654, 682.326613, 682.539749, 682.765271, 682.858295, 682.883807, 683.078216, 683.253728, 683.596879, 683.819908, 684.161503, 684.413784, 684.976312, 685.429755, 686.409164, 687.630557, 687.783321, 688.051557, 688.30911, 688.414398, 688.535609, 688.726953, 689.050379, 689.281788, 689.657747, 690.228342, 690.330241, 690.073029, 689.296278, 689.22892, 689.210034, 689.193672, 689.145108, 688.895291, 688.329565, 687.834916, 688.290764, 688.465695, 688.357804, 688.11194, 687.842528, 687.75164, 687.520568, 687.136974, 686.756201, 685.867075, 685.504175, 685.150834, 684.822863, 683.978653, 683.336302, 682.681757, 681.31584, 680.114265, 679.502579, 679.023189, 678.011471, 676.64004, 673.70247, 672.022262, 670.566742, 669.316221, 667.564983, 665.225424, 662.830268, 660.866355, 659.730528, 658.395181, 657.652513, 656.771589, 656.733872, 656.667879, 656.542652, 656.860513, 657.534837, 658.174617, 659.122591, 659.415881, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 724.812787, 726.497944, 727.802494, 729.610284, 731.160333, 732.564692, 734.290901, 736.133713, 738.726841, 740.37013, 742.237711, 743.704068, 745.000963, 745.370783, 745.561592, 744.990125, 744.553456, 743.87299, 743.556299, 744.346581], "rupture": [0.172916, 0.20346, 0.152515, 0.191447, 0.285309, 0.217067, 0.338774, 0.342842, 0.228467, 0.265729, 0.286226, 0.241547, 0.303375, 0.24567, 0.307573, 0.370918, 0.314101, 0.326742, 0.535559, 0.60336, 0.362085, 0.254104, 0.200242, 0.182118, 0.200891, 0.309904, 0.318128, 0.249259, 0.331723, 0.253146, 0.334075, 0.258268, 0.171901, 0.113666, 0.133292, 0.204566, 0.163994, 0.138427, 0.085295, 0.070838, 0.119173, 0.106146, 0.085831, 0.032764, 0.041405, 0.048526, 0.051383, 0.06076, 0.046593, 0.062679, 0.0, 0.0, 0.0, 0.0, 0.0, 0.056406, 0.047995, 0.050811, 0.095241, 0.125315, 0.177897, 0.143125, 0.101195, 0.093426, 0.147284, 0.20878, 0.198789, 0.298334, 0.189633, 0.134993, 0.079646, 0.14494, 0.192666, 0.147857, 0.113253, 0.148663, 0.211145, 0.229679, 0.200702, 0.04264, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0.494094, 0.563037, 0.426022, 0.408778, 0.351452, 0.343195, 0.395738, 0.434166, 0.58273, 0.507534, 0.409556, 0.601635, 0.533108, 0.960333, 0.452557, 0.684714, 0.468387, 0.563329, 0.315785, 0.33299], "T_a_norm": [-0.149657, 1.471938, -1.11209, 1.190193, 0.719191, -1.908976, 1.99293, -1.188168, -1.157491, 1.399579, -0.156477, -0.605362, 0.983048, -1.076389, 1.046182, 0.0132, -1.121044, 0.66072, 1.725398, -1.19705, -2.249704, 0.961177, 0.39174, 0.261196, 0.270356, 0.680125, -0.789712, -0.611527, 1.18636, -1.253964, 1.1941, -1.139493, -0.078114, 0.211921, 0.593991, 0.392369, -0.852199, 0.115154, -0.226448, 0.32671, 0.662291, -0.667567, -0.079893, -0.359345, 0.671721, -0.017015, -0.049299, 0.077091, -0.304804, 0.443621, -1.311426, 1.238759, 0.0, 0.0, 0.0, 1.193079, -1.52955, 0.265256, 0.975655, -0.341121, 0.563463, -2.060182, -0.168811, 0.805503, 1.453352, 0.180089, -1.569727, 2.114995, -2.964866, 0.760778, -0.010252, 1.659622, -0.241199, -1.21957, 0.134394, 0.914855, 0.359756, -0.578552, -0.624719, -1.592374, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0.479086, -0.124262, 0.979254, -1.679344, -0.182775, 1.898832, -1.563792, 2.292251, -2.763329, 1.912935, -1.146399, 0.804603, -0.892444, 0.699937]};
+    const chartDefaults = {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8fa3c8', maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#8fa3c8' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+      }
+    };
+
+    function sparkline(canvasId, series, color, label) {
+      const el = document.getElementById(canvasId);
+      if (!el || !series) return;
+      new Chart(el, {
+        type: 'line',
+        data: {
+          labels: DATA.dates,
+          datasets: [{ data: series, borderColor: color, backgroundColor: color + '33',
+                       borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.35 }]
+        },
+        options: { ...chartDefaults, plugins: { legend: { display: false }, tooltip: { callbacks: {
+          label: ctx => label + ': ' + (ctx.parsed.y?.toFixed(4) ?? '—')
+        } } } }
+      });
+    }
+
+    sparkline('chart-macd', DATA.macd_hist, '#00d4ff', 'MACD Hist');
+    sparkline('chart-rsi', DATA.rsi, '#ff3cac', 'RSI');
+    sparkline('chart-cvd', DATA.cvd, '#ffb347', 'CVD');
+    sparkline('chart-volume', DATA.volume, '#39ff14', 'Volume');
+    sparkline('chart-vwap', DATA.vwap, '#9d4edd', 'VWAP');
+
+    const composite = document.getElementById('chart-composite');
+    if (composite) {
+      new Chart(composite, {
+        type: 'line',
+        data: {
+          labels: DATA.dates,
+          datasets: [
+            { label: 'Close', data: DATA.close, borderColor: '#e8eefc', yAxisID: 'y', tension: 0.2, pointRadius: 0 },
+            { label: 'Rupture P', data: DATA.rupture, borderColor: '#ff4d6d', yAxisID: 'y1', tension: 0.3, pointRadius: 0 },
+            { label: 'T_a norm', data: DATA.T_a_norm, borderColor: '#ffd700', yAxisID: 'y1', tension: 0.3, pointRadius: 0 }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: '#c5d4f0' } } },
+          scales: {
+            x: { ticks: { color: '#8fa3c8', maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { position: 'left', ticks: { color: '#e8eefc' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+            y1: { position: 'right', ticks: { color: '#ffb347' }, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

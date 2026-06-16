@@ -8,42 +8,62 @@
 
 ## Latest Snapshot
 
-- **Latest date:** 2026-06-12
-- **Latest close:** 741.75
+- **Latest date:** 2026-06-15
+- **Latest close:** 754.83
 - **Latest B_s:** 0.3000
-- **Latest E_i:** 1.0526
-- **Latest rupture_pressure_score:** 0.3158
+- **Latest E_i:** 1.1100
+- **Latest rupture_pressure_score:** 0.3330
 - **Latest regime_label:** PRESSURE_BUILDING
 - **Latest regime_persistence:** 1 sessions
+
+## Transitional Acceleration & Observer Differential
+
+_Complex systems do not fail equally for all observers. Rupture becomes visible at different times depending on an observer's proximity to the system's internal pressure variables. The system changes before most observers are capable of perceiving the change._
+
+- **T_a (transitional acceleration):** 0.264749
+- **T_a_norm:** 0.6999
+- **T_a_regime:** ACCELERATION_POSITIVE
+- **R_o (observational resolution):** 0.5791
+- **T_v (visibility horizon, sessions):** 3.0
+- **Observer profile:** pilot
+
+### T_a Regime Key
+
+| Regime | Meaning |
+| :--- | :--- |
+| TAKEOFF_BEGINNING | Positive acceleration — thrust building |
+| CRUISE | Near-zero acceleration — stable flight |
+| THRUST_LOSS | Negative acceleration — momentum fading |
+| DISSIPATION_CASCADE | Strong negative — energy bleeding out |
 
 ## Weekly Stance Filter
 
 A forecast should not only predict direction. It should estimate whether the observed system has finished becoming the thing being predicted. This engine forecasts **state maturity**, not price.
 
-- **Direction bias:** bullish (`direction_score=0.03`)
-- **Trade permission:** weak (`stance_confidence=+0.18`)
-- **Stance quadrant:** bullish / unresolved
-- **Gate stance:** LOW-CONFIDENCE CRUISE MODE
+- **Direction bias:** bullish (`direction_score=0.67`)
+- **Trade permission:** actionable (`stance_confidence=+0.28`)
+- **Stance quadrant:** bullish / actionable
+- **Gate stance:** ACTIONABLE DIRECTIONAL STANCE
 - **Regime persistence:** 1 consecutive sessions in `PRESSURE_BUILDING`
 
 ### Stance Vector
 
 | Component | Score |
 | :--- | ---: |
-| direction_score | 0.03 |
-| timing_score | 0.72 |
-| magnitude_score | 0.61 |
-| volatility_score | 0.21 |
+| direction_score | 0.67 |
+| timing_score | 0.73 |
+| magnitude_score | 0.60 |
+| volatility_score | 0.24 |
 | packet_completion_confidence | 0.64 |
-| absorption_confidence | 0.77 |
-| hidden_process_uncertainty | 0.59 |
-| continuation_probability | 0.43 |
+| absorption_confidence | 0.58 |
+| hidden_process_uncertainty | 0.53 |
+| continuation_probability | 0.86 |
 | regime_persistence | 1 |
-| rupture_probability | 0.32 |
+| rupture_probability | 0.33 |
 
 ### Recommended Model Action
 
-Bullish bias detected, but packet completion is low. Current state: bullish / unresolved. Wait for confirmation or reduce position size. The observed packet has not resolved enough to trust the directional conclusion.
+Actionable bullish stance. Packet completion and continuation probability support a directional position with normal sizing.
 
 ## Boundary Model
 

@@ -1,0 +1,47 @@
+{
+  "ticker": "SPY",
+  "as_of_date": "2026-06-15",
+  "spot": 754.83,
+  "chain_date": "06_15_2026",
+  "observer_differential": {
+    "quote": "Complex systems do not fail equally for all observers. Rupture becomes visible at different times depending on an observer's proximity to the system's internal pressure variables. The system changes before most observers are capable of perceiving the change.",
+    "T_a": 0.2647489605757475,
+    "T_a_norm": 0.6999366219873949,
+    "T_a_regime": "ACCELERATION_POSITIVE",
+    "R_o": 0.5790883903781328,
+    "T_v": 3.0,
+    "observer_profile": "pilot"
+  },
+  "pressure_sensors": {
+    "macd_histogram": -2.296062894206954,
+    "macd_regime": "DECEL_DOWN",
+    "rsi": 60.3901534902467,
+    "rsi_saturation": "ENERGY_ACCUMULATING",
+    "cvd_imbalance": 0.2049690797461187,
+    "cvd_regime": "IMBALANCE_BUILDING",
+    "volume_injection": 1.1099667089836607,
+    "volume_regime": "ELEVATED_FLOW",
+    "vwap": 744.346581456343,
+    "vwap_regime": "ABOVE_ATTRACTOR",
+    "gamma_flip": {
+      "gamma_flip_strike": 740.0,
+      "distance_to_flip_pct": 1.964680789051845,
+      "net_gamma_at_spot": 5013.789,
+      "gamma_regime": "ABOVE_FLIP_POSITIVE_GAMMA",
+      "call_gamma_oi": 10880.760800000002,
+      "put_gamma_oi": 1323.2249000000002
+    }
+  },
+  "canopyento": {
+    "B_s": 0.3,
+    "E_i": 1.1099667089836607,
+    "rupture_pressure_score": 0.3329900126950982,
+    "regime_label": "PRESSURE_BUILDING"
+  },
+  "weekly_stance": {
+    "stance_quadrant": "bullish / actionable",
+    "gate_stance": "ACTIONABLE DIRECTIONAL STANCE",
+    "stance_confidence": 0.27937870906011686,
+    "recommended_action": "Actionable bullish stance. Packet completion and continuation probability support a directional position with normal sizing."
+  }
+}
