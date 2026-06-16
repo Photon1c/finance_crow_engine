@@ -1,3 +1,5 @@
+# Finance Crow Engine
+
 # Recursive Trade Aggregator
 
 A replay and evaluation toolkit for options trade failures. Completed trades are treated as **trajectories** (not just P/L), stored as **lesson packets** in a ledger, and fed into recursive model weights over time. A parallel layer—the **Trading Logistics Driver**—scores trade paths using an autonomous-driving-style reward decomposition.
