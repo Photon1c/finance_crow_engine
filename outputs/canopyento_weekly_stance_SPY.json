@@ -1,0 +1,23 @@
+{
+  "ticker": "SPY",
+  "as_of_date": "2026-06-12",
+  "philosophy": "Forecast state maturity, not price. Direction may exist while trade permission remains weak until the observed packet resolves.",
+  "weekly_stance": {
+    "direction_score": 0.030651530011107597,
+    "timing_score": 0.7205247065987835,
+    "magnitude_score": 0.6116885743174916,
+    "volatility_score": 0.2076235329939177,
+    "packet_completion_confidence": 0.64,
+    "absorption_confidence": 0.7663581063210791,
+    "hidden_process_uncertainty": 0.5926666666666667,
+    "continuation_probability": 0.42633789670192956,
+    "regime_persistence": 1.0,
+    "rupture_probability": 0.3157848759965244
+  },
+  "stance_confidence": 0.17816427680348235,
+  "gate_stance": "LOW-CONFIDENCE CRUISE MODE",
+  "direction_bias": "bullish",
+  "trade_permission": "weak",
+  "stance_quadrant": "bullish / unresolved",
+  "recommended_action": "Bullish bias detected, but packet completion is low. Current state: bullish / unresolved. Wait for confirmation or reduce position size. The observed packet has not resolved enough to trust the directional conclusion."
+}

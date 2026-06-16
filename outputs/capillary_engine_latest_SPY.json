@@ -1,0 +1,22 @@
+{
+  "ticker": "SPY",
+  "as_of_date": "2026-06-12",
+  "combined_read": "Market remains in cruise mode. Microscopic disturbances are being absorbed.",
+  "capillary_regime": "ABSORBING_NOISE",
+  "metrics": {
+    "brownian_noise": 0.6307818322630979,
+    "wave_persistence": 0.4133231881900279,
+    "compression": 0.21052631578947367,
+    "surface_tension": 0.6661252289293129,
+    "capillary_score": 0.1692048005326832,
+    "cruise_integrity": 0.5534136424385406,
+    "pinch_off_risk": 0.28173226889571795
+  },
+  "canopyento": {
+    "regime": "PRESSURE_BUILDING",
+    "score": 0.3157848759965244,
+    "rupture_probability": 0.3157848759965244,
+    "gate_stance": "LOW-CONFIDENCE CRUISE MODE",
+    "stance_quadrant": "bullish / unresolved"
+  }
+}
