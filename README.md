@@ -26,7 +26,10 @@ finance_crow_engine/
 │
 ├── README.md                              ← human navigation guide (this file)
 ├── summary.md                             ← LLM onboarding: architecture, file tree, rules
-├── archive/log.md                         ← conversation milestones and architecture shifts
+├── archive/
+│   ├── log.md                             ← conversation milestones
+│   ├── transition_framework.md            ← universal transition framework archive
+│   └── transition_framework.tex             ← formal equations (LaTeX)
 ├── recursive_trade_aggregator.code-workspace
 │
 ├── ★ recursive_trade_failure.py           ← main CLI: score failures, update weights, write reports

@@ -123,7 +123,9 @@ finance_crow_engine/
 │   └── test_packet_ontology.py            ← sacred ontology loader (5 tests)
 │
 ├── archive/
-│   └── log.md                             ← conversation milestones
+│   ├── log.md
+│   ├── transition_framework.md            ← universal transition framework + A_d frontier
+│   └── transition_framework.tex           ← LaTeX equations
 │
 ├── outputs/                               ← generated artifacts (safe to regenerate)
 │   ├── recursive_packets_{TICKER}.csv
@@ -340,6 +342,8 @@ Expected: **48+ tests**.
 | [`README.md`](README.md) | Humans | CLI flags, module reference, quick start |
 | [`summary.md`](summary.md) | LLMs / agents | Architecture, file tree, sacred rules, glossary |
 | [`archive/log.md`](archive/log.md) | Both | Conversation milestones |
+| [`archive/transition_framework.md`](archive/transition_framework.md) | Both | Universal transition framework + A_d frontier |
+| [`archive/transition_framework.tex`](archive/transition_framework.tex) | Both | Formal equations (LaTeX) |
 | [`TRPR/ontology/ONTOLOGY_CHARTER.md`](TRPR/ontology/ONTOLOGY_CHARTER.md) | Both | Ontology drift prevention |
 | [`TRPR/ontology/packet_ontology.yaml`](TRPR/ontology/packet_ontology.yaml) | Both | Sacred vocabulary (schema v0.1.0) |
 | [`config/pressure_ontology.yaml`](config/pressure_ontology.yaml) | Both | Market domain mapping layer |

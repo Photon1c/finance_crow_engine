@@ -1,0 +1,117 @@
+% Universal Transition Framework — Finance Crow Engine / TRPR
+% Archived 2026-06-16 — inflection commit a359974
+% Compile: pdflatex transition_framework.tex (optional)
+
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+
+\title{Universal Transition Framework}
+\author{Finance Crow Engine / TRPR Archive}
+\date{2026-06-16}
+
+\begin{document}
+\maketitle
+
+\section{Governing Law}
+Rupture occurs when oscillatory amplitude and accumulated stress exceed compensatory capacity:
+\begin{quote}
+\textit{Rupture occurs when amplitude exceeds compensatory capacity.}
+\end{quote}
+
+\section{Compensatory Load (Domain-Independent)}
+Any system under load:
+\begin{itemize}
+  \item \textbf{Markets:} price pressure $\uparrow$, dealers absorb flow, rupture delayed
+  \item \textbf{Aircraft:} mechanical stress $\uparrow$, control surfaces compensate, failure delayed
+  \item \textbf{Institutions:} workload $\uparrow$, staff absorb pressure, collapse delayed
+  \item \textbf{Bridges:} load oscillation $\uparrow$, elasticity compensates, fracture delayed
+  \item \textbf{Software:} memory pressure $\uparrow$, retries/load-balance compensate, failure delayed
+  \item \textbf{Ecology:} predator pressure $\uparrow$, flock coordination compensates, dispersal delayed
+\end{itemize}
+
+\section{Variable Definitions}
+\begin{align}
+P &\equiv \text{pressure accumulation} \\
+A &\equiv \text{oscillatory amplitude} \\
+H &\equiv \text{historical stress memory (hysteresis)} \\
+F_r &\equiv \text{restoring field strength} \\
+D_c &\equiv \text{dissipation capacity} \\
+A_d &\equiv \text{adaptive reconfiguration} \quad \text{(proposed; not yet implemented)}
+\end{align}
+
+\section{Rupture Ratio}
+Define compensatory capacity:
+\begin{equation}
+  C = \frac{F_r \cdot D_c \cdot A_d}{P \cdot A \cdot H}
+  \label{eq:compensatory}
+\end{equation}
+
+Define rupture risk:
+\begin{equation}
+  R = \frac{P \cdot A \cdot H}{F_r \cdot D_c \cdot A_d} = \frac{1}{C}
+  \label{eq:rupture-ratio}
+\end{equation}
+
+\textbf{Critical rupture condition:}
+\begin{equation}
+  R > 1 \quad \Longleftrightarrow \quad C < 1
+\end{equation}
+
+At commit \texttt{a359974}, implementation uses $A_d = 1$ implicitly (adaptive reconfiguration not yet modeled).
+
+\section{Loop-Closure Implementation (Finance-Crow)}
+Baseline pressure signal (canonical):
+\begin{equation}
+  \mathrm{LRP} = \sigma\!\left( 4 \left( \mathrm{LRP}_{\mathrm{raw}} - \tfrac{1}{2} \right) \right),
+  \quad \mathrm{LRP}_{\mathrm{raw}} = \sum_i w_i \cdot \text{component}_i
+\end{equation}
+
+Experimental restoration-adjusted signal:
+\begin{align}
+  \mathrm{LRP}_{\mathrm{adj,raw}}
+  &= \mathrm{LRP}_{\mathrm{raw}} \cdot \delta_{\mathrm{rest}} \cdot \beta_{\mathrm{cap}} \cdot \beta_{\mathrm{hyst}} \cdot \beta_{\mathrm{obs}} \\
+  \mathrm{LRP}_{\mathrm{adjusted}}
+  &= \sigma\!\left( 4 \left( \mathrm{LRP}_{\mathrm{adj,raw}} - \tfrac{1}{2} \right) \right)
+\end{align}
+
+with clamped multipliers (implementation):
+\begin{align}
+  \delta_{\mathrm{rest}} &= \mathrm{clamp}\!\left(1 - 0.35 \cdot \frac{F_r}{P_{\mathrm{load}}},\; 0.55,\; 1.15\right) \\
+  \beta_{\mathrm{cap}} &= \mathrm{clamp}\!\left(1 + 0.25\, C_w,\; 1.0,\; 1.40\right) \\
+  \beta_{\mathrm{hyst}} &= \mathrm{clamp}\!\left(1 + 0.20\, H_{\mathrm{carry}} + 0.10\,(\sigma_{\mathrm{post}} - 1),\; 1.0,\; 1.35\right) \\
+  \beta_{\mathrm{obs}} &= \mathrm{clamp}\!\left(1 + 0.15\, O_i,\; 1.0,\; 1.25\right)
+\end{align}
+
+\section{Adaptive Reconfiguration (Future)}
+Systems may survive by restructuring rather than resisting:
+\begin{equation}
+  S_{t+1} = S_t + f(A_d), \qquad A_d \in [0,1]
+  \label{eq:adaptation}
+\end{equation}
+
+When $A_d$ is high, $C$ increases and $R$ decreases; rupture may be avoided through new equilibrium formation (see \eqref{eq:compensatory}).
+
+\section{Restorative Force (Attractor)}
+Approximate restorative force toward equilibrium:
+\begin{equation}
+  F_{\mathrm{restore}} \approx -\, A_{\mathrm{field}} \cdot \delta_{\mathrm{eq}}
+\end{equation}
+where $A_{\mathrm{field}}$ is attractor field strength and $\delta_{\mathrm{eq}}$ is deviation from equilibrium (gamma-aware in implementation).
+
+\section{Capillary Wave Score}
+Local oscillatory instability near boundary:
+\begin{equation}
+  C_w \propto \frac{A_{\mathrm{micro}} \cdot W_p}{D_r}
+\end{equation}
+where $W_p$ is wave persistence and $D_r$ is local dissipation rate.
+
+\section{Archive Metadata}
+\begin{itemize}
+  \item Inflection commit: \texttt{a359974}
+  \item Sacred ontology: \texttt{TRPR/ontology/packet\_ontology.yaml} (schema v0.1.1)
+  \item Narrative archive: \texttt{archive/transition\_framework.md}
+\end{itemize}
+
+\end{document}
