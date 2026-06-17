@@ -7,6 +7,7 @@ Market-state engines extend the stack:
 - **CanopyEnto** — pressure-field observer: boundary containment stress, observer differential metrics, weekly stance filtering
 - **Capillary Engine** — microscopic noise absorption overlay during cruise mode
 - **Pressure Field Dashboard** — multi-sensor HTML dashboard with LRP and rate-of-change derivatives
+- **Laser Falcon** — CSV options research: IV skew/surface, OU mean reversion, stochastic vol cones
 - **TRPR** — sacred packet ontology (`TRPR/ontology/packet_ontology.yaml`) shared across domains
 
 **Not a live trading system.** No broker API, no order execution. CSV replay and analysis only.
@@ -14,6 +15,8 @@ Market-state engines extend the stack:
 > **LRP doctrine:** Baseline LRP = pressure signal; LRP_adjusted (experimental) = pressure after restoration/capillary/hysteresis/observer modifiers.
 
 > **Elastic rebound layer:** Maps gamma locking, hidden reservoir pressure, and false-stability risk into finance-local metrics. Sacred ontology untouched.
+
+> **Laser Falcon:** CSV-driven options research engine — IV skew/surface, OU mean reversion, stochastic vol projections. Sacred ontology untouched; map inward via `config/pressure_ontology.yaml`.
 
 > **For LLM / agent onboarding:** read [`summary.md`](summary.md) first — repo map, architecture, sacred ontology rules, and navigation guide.
 
@@ -43,6 +46,15 @@ finance_crow_engine/
 ├── pressure_field_derivatives.py          ← LRP, rate-of-change derivatives, alerts
 ├── pressure_field_physics.py              ← orchestrates restoration/capillary/attractor/hysteresis/entropy
 ├── elastic_rebound_engine.py              ← gamma strain, hidden reservoir, false stability
+├── ★ laser_falcon_primary_engine.py       ← IV skew/surface, OU + stoch vol orchestration
+├── laser_falcon_data_adapter.py           ← normalized stock/option chain adapter
+├── volatility_skew_engine.py              ← skew metrics + benchmark compare
+├── volatility_surface_engine.py           ← 3D IV surface (sparse-tolerant)
+├── implied_vol_solver.py                  ← Black-Scholes IV inversion
+├── ou_iv_engine.py                        ← OU IV mean reversion paths
+├── stochastic_vol_engine.py               ← Heston-like vol cones
+├── laser_falcon_regime_mapper.py          ← map vol metrics to pressure vocabulary
+├── ★ streamlit_laser_falcon.py            ← interactive Laser Falcon UI
 ├── restoration_field_engine.py            ← F_r restoring field, D_c dissipation capacity
 ├── capillary_wave_engine.py               ← A_f oscillation amplitude, C_w capillary wave score
 ├── attractor_engine.py                    ← equilibrium field strength, deviation
@@ -62,6 +74,7 @@ finance_crow_engine/
 │   ├── test_pressure_field_physics.py
 │   ├── test_lrp_loop_closure.py
 │   ├── test_elastic_rebound.py
+│   ├── test_laser_falcon.py
 │   └── test_packet_ontology.py
 │
 ├── data_loader.py                         ← shared stock + option CSV loading
@@ -121,6 +134,8 @@ F:/inputs/
 | Detect boundary containment stress | `canopyento_boundary_engine.py` | `python canopyento_boundary_engine.py` |
 | Measure micro-noise absorption (Capillary) | `capillary_engine.py` | `python capillary_engine.py --ticker SPY` |
 | View pressure-field HTML dashboard | `pressure_field_dashboard.py` | `python pressure_field_dashboard.py --ticker SPY --open` |
+| Options IV research (Laser Falcon) | `laser_falcon_primary_engine.py` | `python laser_falcon_primary_engine.py --ticker SPCX --benchmark SPY` |
+| Interactive Laser Falcon UI | `streamlit_laser_falcon.py` | `streamlit run streamlit_laser_falcon.py` |
 | Run full market-state stack | CanopyEnto → Capillary | see [Quick start](#quick-start) |
 | Animate the failure pipeline | `misc_packet_visualizer.py` (via flag) | `python recursive_trade_failure.py --csv --visual` |
 | Run the ring-toss pygame demo | `disposition_ring_toss.py` | `python disposition_ring_toss.py` |
@@ -438,7 +453,7 @@ Core ideas:
 ## Tests
 
 ```powershell
-python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound -v
+python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound tests.test_laser_falcon -v
 ```
 
 ## Dependencies

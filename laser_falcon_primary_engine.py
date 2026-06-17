@@ -1,0 +1,377 @@
+"""Laser Falcon primary orchestration — CSV replay options research engine.
+
+No live trading. No broker APIs.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
+
+import numpy as np
+
+from laser_falcon_data_adapter import (
+    DEFAULT_OPTION_DIR,
+    DEFAULT_STOCK_DIR,
+    LaserFalconSnapshot,
+    load_laser_falcon_snapshot,
+)
+from laser_falcon_regime_mapper import map_laser_falcon_regime_metrics
+from ou_iv_engine import plot_ou_iv_projection, simulate_ou_iv_paths
+from stochastic_vol_engine import plot_stochastic_vol_projection, simulate_stochastic_vol_paths
+from volatility_skew_engine import (
+    compare_skew_to_benchmark,
+    compute_skew_metrics,
+    plot_iv_skew,
+)
+from volatility_surface_engine import build_iv_surface_grid, plot_iv_surface
+
+DEFAULT_OUTPUT_DIR = Path("outputs/laser_falcon")
+DEFAULT_BENCHMARK = "SPY"
+DEFAULT_PROJECTION_DAYS = 30
+
+
+def _json_safe(obj: Any) -> Any:
+    if isinstance(obj, (np.floating, np.integer)):
+        val = float(obj)
+        return val if np.isfinite(val) else None
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+def build_skew_report(
+    snapshot: LaserFalconSnapshot,
+    *,
+    expiration: Optional[str] = None,
+    benchmark_snapshot: Optional[LaserFalconSnapshot] = None,
+) -> dict[str, Any]:
+    metrics = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=expiration)
+    report: dict[str, Any] = {"ticker": snapshot.ticker, "skew": metrics}
+    if benchmark_snapshot is not None:
+        bench = compute_skew_metrics(benchmark_snapshot.option_df, spot=benchmark_snapshot.spot, expiration=expiration)
+        report["benchmark"] = compare_skew_to_benchmark(metrics, bench)
+    return report
+
+
+def build_surface_report(snapshot: LaserFalconSnapshot) -> dict[str, Any]:
+    return build_iv_surface_grid(snapshot.option_df, spot=snapshot.spot)
+
+
+def run_ou_iv_projection(
+    *,
+    iv0: float,
+    long_run_mean_iv: float = 0.25,
+    theta: float = 4.0,
+    vol_of_vol: float = 0.15,
+    projection_days: int = DEFAULT_PROJECTION_DAYS,
+    n_paths: int = 500,
+    seed: Optional[int] = 42,
+) -> dict[str, Any]:
+    result = simulate_ou_iv_paths(
+        iv0=iv0,
+        long_run_mean_iv=long_run_mean_iv,
+        theta=theta,
+        vol_of_vol=vol_of_vol,
+        projection_days=projection_days,
+        n_paths=n_paths,
+        seed=seed,
+    )
+    export = {k: v for k, v in result.items() if k != "paths"}
+    export["paths_sample"] = result["paths"][:5].tolist()
+    return export
+
+
+def run_stochastic_vol_projection(
+    *,
+    spot0: float,
+    atm_iv: float,
+    projection_days: int = DEFAULT_PROJECTION_DAYS,
+    n_paths: int = 500,
+    rho: float = -0.7,
+    xi: float = 0.5,
+    kappa: float = 2.0,
+    seed: Optional[int] = 42,
+) -> dict[str, Any]:
+    variance0 = max(atm_iv ** 2, 1e-6)
+    result = simulate_stochastic_vol_paths(
+        spot0=spot0,
+        variance0=variance0,
+        theta=variance0,
+        kappa=kappa,
+        xi=xi,
+        rho=rho,
+        projection_days=projection_days,
+        n_paths=n_paths,
+        seed=seed,
+    )
+    export = {k: v for k, v in result.items() if k not in ("prices", "variances", "vol_paths")}
+    return export
+
+
+def _write_summary_md(
+    path: Path,
+    *,
+    ticker: str,
+    benchmark: str,
+    snapshot: LaserFalconSnapshot,
+    skew_report: dict[str, Any],
+    surface_report: dict[str, Any],
+    ou_result: dict[str, Any],
+    stoch_result: dict[str, Any],
+    regime_metrics: dict[str, float],
+    artifact_paths: dict[str, str],
+) -> None:
+    skew = skew_report.get("skew", {})
+    lines = [
+        f"# Laser Falcon Summary — {ticker.upper()}",
+        "",
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+        "",
+        "## Data Health",
+        f"- Status: **{snapshot.data_health.get('status', 'UNKNOWN')}**",
+        f"- Contracts: {snapshot.data_health.get('n_contracts', 0)}",
+        f"- Expirations: {snapshot.data_health.get('n_expirations', 0)}",
+        f"- IV coverage: {snapshot.data_health.get('iv_coverage_pct', 0)}%",
+        "",
+    ]
+    for warning in snapshot.data_health.get("warnings", []):
+        lines.append(f"- Warning: {warning}")
+    lines.extend(
+        [
+            "",
+            "## IV Skew",
+            f"- Expiration: {skew.get('expiration', 'n/a')}",
+            f"- ATM IV: {skew.get('atm_iv', 'n/a')}",
+            f"- Put wing IV: {skew.get('put_wing_iv', 'n/a')}",
+            f"- Call wing IV: {skew.get('call_wing_iv', 'n/a')}",
+            f"- Skew slope: {skew.get('skew_slope', 'n/a')}",
+            f"- Put fear flag: {skew.get('put_fear_flag', False)}",
+            f"- Call FOMO flag: {skew.get('call_fomo_flag', False)}",
+            "",
+            "## IV Surface",
+            f"- Status: {surface_report.get('status', 'n/a')}",
+            f"- Reason: {surface_report.get('density', {}).get('reason', 'n/a')}",
+            "",
+            "## OU IV Mean Reversion",
+            f"- IV0: {ou_result.get('iv0', 'n/a')}",
+            f"- Terminal mean: {ou_result.get('terminal_mean', 'n/a')}",
+            f"- Half-life (days): {ou_result.get('half_life_days', 'n/a')}",
+            "",
+            "## Stochastic Volatility",
+            f"- Terminal median price: {stoch_result.get('terminal_price_p50', 'n/a')}",
+            f"- Terminal median vol: {stoch_result.get('terminal_vol_p50', 'n/a')}",
+            "",
+            "## Pressure-Field Mapping (local)",
+            f"- iv_pressure_score: {regime_metrics.get('iv_pressure_score')}",
+            f"- skew_instability_score: {regime_metrics.get('skew_instability_score')}",
+            f"- surface_dislocation_score: {regime_metrics.get('surface_dislocation_score')}",
+            f"- vol_reversion_pressure: {regime_metrics.get('vol_reversion_pressure')}",
+            f"- option_liquidity_risk: {regime_metrics.get('option_liquidity_risk')}",
+            "",
+            f"## Benchmark: {benchmark.upper()}",
+        ]
+    )
+    bench = skew_report.get("benchmark")
+    if bench:
+        lines.append(f"- ATM IV delta vs {benchmark.upper()}: {bench.get('atm_iv_delta', 'n/a')}")
+    else:
+        lines.append("- Benchmark comparison unavailable")
+    lines.extend(["", "## Artifacts"] + [f"- {k}: `{v}`" for k, v in artifact_paths.items()])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def run_laser_falcon_analysis(
+    ticker: str,
+    *,
+    benchmark: str = DEFAULT_BENCHMARK,
+    projection_days: int = DEFAULT_PROJECTION_DAYS,
+    output_dir: Path = DEFAULT_OUTPUT_DIR,
+    stock_dir: str = DEFAULT_STOCK_DIR,
+    option_dir: str = DEFAULT_OPTION_DIR,
+    ou_theta: float = 4.0,
+    ou_long_run_iv: Optional[float] = None,
+    vol_of_vol: float = 0.15,
+    stoch_rho: float = -0.7,
+    stoch_xi: float = 0.5,
+    n_paths: int = 500,
+) -> dict[str, Any]:
+    """Run full Laser Falcon pipeline and save artifacts."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ticker = ticker.upper()
+    benchmark = benchmark.upper()
+
+    snapshot = load_laser_falcon_snapshot(ticker, stock_dir=stock_dir, option_dir=option_dir)
+    bench_snapshot: Optional[LaserFalconSnapshot] = None
+    if benchmark != ticker:
+        try:
+            bench_snapshot = load_laser_falcon_snapshot(benchmark, stock_dir=stock_dir, option_dir=option_dir)
+        except FileNotFoundError:
+            bench_snapshot = None
+
+    skew_report = build_skew_report(snapshot, benchmark_snapshot=bench_snapshot)
+    bench_metrics = None
+    if bench_snapshot is not None:
+        bench_metrics = compute_skew_metrics(bench_snapshot.option_df, spot=bench_snapshot.spot)
+
+    skew_path = plot_iv_skew(
+        snapshot.option_df,
+        ticker=ticker,
+        spot=snapshot.spot,
+        output_path=output_dir / f"{ticker}_iv_skew.png",
+        benchmark_metrics=bench_metrics,
+    )
+    surface_path, surface_report = plot_iv_surface(
+        snapshot.option_df,
+        ticker=ticker,
+        spot=snapshot.spot,
+        output_path=output_dir / f"{ticker}_iv_surface.png",
+    )
+
+    atm_iv = skew_report["skew"].get("atm_iv") or 25.0
+    iv0 = float(atm_iv) / 100.0 if atm_iv > 1 else float(atm_iv)
+    long_run = ou_long_run_iv if ou_long_run_iv is not None else max(iv0 * 0.85, 0.15)
+
+    ou_full = simulate_ou_iv_paths(
+        iv0=iv0,
+        long_run_mean_iv=long_run,
+        theta=ou_theta,
+        vol_of_vol=vol_of_vol,
+        projection_days=projection_days,
+        n_paths=n_paths,
+    )
+    ou_path = plot_ou_iv_projection(ou_full, ticker=ticker, output_path=output_dir / f"{ticker}_ou_iv_projection.png")
+    ou_export = run_ou_iv_projection(
+        iv0=iv0,
+        long_run_mean_iv=long_run,
+        theta=ou_theta,
+        vol_of_vol=vol_of_vol,
+        projection_days=projection_days,
+        n_paths=n_paths,
+    )
+
+    stoch_full = simulate_stochastic_vol_paths(
+        spot0=snapshot.spot,
+        variance0=iv0 ** 2,
+        theta=iv0 ** 2,
+        xi=stoch_xi,
+        rho=stoch_rho,
+        projection_days=projection_days,
+        n_paths=n_paths,
+    )
+    stoch_path = plot_stochastic_vol_projection(
+        stoch_full,
+        ticker=ticker,
+        output_path=output_dir / f"{ticker}_stochastic_vol_projection.png",
+    )
+    stoch_export = run_stochastic_vol_projection(
+        spot0=snapshot.spot,
+        atm_iv=iv0,
+        projection_days=projection_days,
+        n_paths=n_paths,
+        rho=stoch_rho,
+        xi=stoch_xi,
+    )
+
+    regime_metrics = map_laser_falcon_regime_metrics(
+        skew_metrics=skew_report["skew"],
+        surface_report=surface_report,
+        ou_result=ou_export,
+        data_health=snapshot.data_health,
+    )
+
+    artifact_paths = {
+        "iv_skew": str(skew_path),
+        "iv_surface": str(surface_path),
+        "ou_iv_projection": str(ou_path),
+        "stochastic_vol_projection": str(stoch_path),
+    }
+
+    summary_path = output_dir / f"{ticker}_laser_falcon_summary.md"
+    _write_summary_md(
+        summary_path,
+        ticker=ticker,
+        benchmark=benchmark,
+        snapshot=snapshot,
+        skew_report=skew_report,
+        surface_report=surface_report,
+        ou_result=ou_export,
+        stoch_result=stoch_export,
+        regime_metrics=regime_metrics,
+        artifact_paths=artifact_paths,
+    )
+
+    latest = {
+        "ticker": ticker,
+        "benchmark": benchmark,
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "spot": snapshot.spot,
+        "chain_date": snapshot.chain_date,
+        "data_health": snapshot.data_health,
+        "skew": skew_report,
+        "surface": {k: v for k, v in surface_report.items() if k != "grid"},
+        "ou_iv": ou_export,
+        "stochastic_vol": stoch_export,
+        "regime_metrics": regime_metrics,
+        "artifacts": artifact_paths,
+        "summary_md": str(summary_path),
+    }
+    json_path = output_dir / f"{ticker}_laser_falcon_latest.json"
+    json_path.write_text(json.dumps(_json_safe(latest), indent=2), encoding="utf-8")
+    latest["json_path"] = str(json_path)
+    return latest
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="Laser Falcon options research engine (CSV replay only)")
+    parser.add_argument("--ticker", default="SPCX", help="Target ticker")
+    parser.add_argument("--benchmark", default=DEFAULT_BENCHMARK, help="Benchmark ticker")
+    parser.add_argument("--projection-days", type=int, default=DEFAULT_PROJECTION_DAYS)
+    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--stock-dir", default=DEFAULT_STOCK_DIR)
+    parser.add_argument("--option-dir", default=DEFAULT_OPTION_DIR)
+    parser.add_argument("--ou-theta", type=float, default=4.0)
+    parser.add_argument("--vol-of-vol", type=float, default=0.15)
+    parser.add_argument("--stoch-rho", type=float, default=-0.7)
+    parser.add_argument("--n-paths", type=int, default=500)
+    args = parser.parse_args(argv)
+
+    try:
+        result = run_laser_falcon_analysis(
+            args.ticker,
+            benchmark=args.benchmark,
+            projection_days=args.projection_days,
+            output_dir=Path(args.output_dir),
+            stock_dir=args.stock_dir,
+            option_dir=args.option_dir,
+            ou_theta=args.ou_theta,
+            vol_of_vol=args.vol_of_vol,
+            stoch_rho=args.stoch_rho,
+            n_paths=args.n_paths,
+        )
+    except FileNotFoundError as exc:
+        print(f"Laser Falcon error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Laser Falcon complete for {result['ticker']}")
+    print(f"  Summary: {result['summary_md']}")
+    print(f"  JSON:    {result['json_path']}")
+    for name, path in result["artifacts"].items():
+        print(f"  {name}: {path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -6,6 +6,8 @@
 
 > **Elastic rebound layer:** Maps gamma locking, hidden reservoir pressure, and false-stability risk into finance-local metrics. Sacred ontology untouched.
 
+> **Laser Falcon:** CSV-driven options research engine — IV skew/surface, OU mean reversion, stochastic vol projections. Maps inward via `config/pressure_ontology.yaml` only.
+
 Read this file first when working in this repository. It is the fast orientation layer for agents and future LLMs. Human-oriented CLI detail lives in [`README.md`](README.md).
 
 ---
@@ -14,12 +16,13 @@ Read this file first when working in this repository. It is the fast orientation
 
 **Finance Crow Engine** is a CSV-replay analysis toolkit — not a live trading system. It treats market behavior and trade outcomes as **packets** moving through relational systems, not as isolated events.
 
-The repo has four cooperating layers:
+The repo has five cooperating layers:
 
 1. **Recursive trade failure loop** — score failed option trades, store lesson packets, update recursive weights
 2. **Trading Logistics Driver** — evaluate completed trade trajectories with autonomous-driving-style reward decomposition
 3. **Market-state observation stack** — CanopyEnto (pressure observer) → Capillary (micro-noise absorption) → Pressure Field Dashboard (multi-sensor HTML + LRP)
-4. **TRPR sacred ontology** — shared packet vocabulary that all future engines map *into* (never redefine locally)
+4. **Laser Falcon** — options IV skew/surface, OU + stochastic vol research (CSV replay; no broker)
+5. **TRPR sacred ontology** — shared packet vocabulary that all future engines map *into* (never redefine locally)
 
 ---
 
@@ -87,6 +90,15 @@ finance_crow_engine/
 │   ├── pressure_field_derivatives.py      ← LRP (sigmoid-calibrated), ROC derivatives, alerts
 │   ├── pressure_field_physics.py          ← orchestrates Phase 1–3 physics engines
 │   ├── elastic_rebound_engine.py          ← gamma strain, hidden reservoir, false stability
+│   ├── ★ laser_falcon_primary_engine.py   ← IV skew/surface, OU + stoch vol orchestration
+│   ├── laser_falcon_data_adapter.py       ← normalized stock/option chain adapter
+│   ├── volatility_skew_engine.py          ← skew metrics + benchmark compare
+│   ├── volatility_surface_engine.py       ← 3D IV surface (sparse-tolerant)
+│   ├── implied_vol_solver.py              ← Black-Scholes IV inversion
+│   ├── ou_iv_engine.py                    ← OU IV mean reversion paths
+│   ├── stochastic_vol_engine.py           ← Heston-like vol cones
+│   ├── laser_falcon_regime_mapper.py      ← map vol metrics to pressure vocabulary
+│   └── ★ streamlit_laser_falcon.py        ← interactive Laser Falcon UI
 │   ├── restoration_field_engine.py        ← F_r, D_c, restoration_ratio
 │   ├── capillary_wave_engine.py           ← A_f, wave_persistence, C_w
 │   ├── attractor_engine.py                ← equilibrium_field_strength, deviation
@@ -208,6 +220,8 @@ pressure_field_dashboard.py (parallel — reads stock + option CSV directly)
 python canopyento_boundary_engine.py --ticker SPY
 python capillary_engine.py --ticker SPY
 python pressure_field_dashboard.py --ticker SPY --open
+python laser_falcon_primary_engine.py --ticker SPCX --benchmark SPY --projection-days 30
+streamlit run streamlit_laser_falcon.py
 ```
 
 ---
@@ -331,7 +345,7 @@ capillary_score = (brownian_noise × wave_persistence × compression) / max(surf
 ## Tests
 
 ```powershell
-python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound -v
+python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound tests.test_laser_falcon -v
 ```
 
 Expected: **48+ tests**.

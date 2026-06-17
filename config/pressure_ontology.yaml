@@ -172,3 +172,15 @@ notes:
     observability_gap_score:
       derived_metric: observer_resolution
       key: R_o
+
+  laser_falcon:
+    iv_pressure_score:
+      note: ATM IV pressure mapped to local magnitude proxy
+    skew_instability_score:
+      note: wing skew / inversion instability
+    surface_dislocation_score:
+      note: sparse or dislocated IV surface
+    vol_reversion_pressure:
+      note: OU mean-reversion workload after shock
+    option_liquidity_risk:
+      note: quote spread / IV coverage liquidity risk
