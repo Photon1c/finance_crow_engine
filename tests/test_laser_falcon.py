@@ -21,8 +21,9 @@ from anomaly_detection_engine import detect_anomalies
 from options_pressure_mapper import compute_options_pressure_metrics, map_to_pressure_vocabulary
 from regime_detection_engine import classify_vol_regime
 from tests.laser_falcon_fixtures import make_synthetic_option_chain, make_synthetic_stock_df
+from temporal_chain_differential_engine import compare_option_chain_snapshots, interpret_pressure_direction
 from volatility_arbitrage_detector import detect_vol_arbitrage
-from volatility_skew_engine import compute_skew_metrics, filter_strikes_near_spot
+from volatility_skew_engine import compute_skew_metrics
 from volatility_surface_engine import assess_surface_density, build_iv_surface_grid
 
 
@@ -121,6 +122,36 @@ class TestAnomalyAndRegime(unittest.TestCase):
         ))
 
 
+class TestTemporalChainDifferential(unittest.TestCase):
+    def test_compare_snapshots_detects_iv_change(self):
+        raw_prior = make_synthetic_option_chain(spot=100.0)
+        raw_current = make_synthetic_option_chain(spot=100.0)
+        raw_current["IV"] = raw_current["IV"] * 1.2
+        raw_current["IV.1"] = raw_current["IV.1"] * 1.15
+        stock = normalize_stock_df(make_synthetic_stock_df(spot=100.0))
+        prior = normalize_option_chain(raw_prior, spot=100.0, reference_date=datetime(2026, 6, 14))
+        current = normalize_option_chain(raw_current, spot=100.0, reference_date=datetime(2026, 6, 15))
+        result = compare_option_chain_snapshots(
+            {"option_df": prior, "stock_df": stock, "spot": 100.0, "chain_date": "06_14_2026"},
+            {"option_df": current, "stock_df": stock, "spot": 100.0, "chain_date": "06_15_2026"},
+            ticker="TEST",
+        )
+        self.assertIn("deltas", result)
+        self.assertIsNotNone(result["deltas"]["delta_atm_iv"])
+        self.assertGreater(result["deltas"]["delta_atm_iv"], 0.0)
+        self.assertIn(result["pressure_direction"], ("PRESSURE_INCREASING", "STABLE", "PRESSURE_DISSIPATING"))
+
+    def test_interpret_pressure_direction(self):
+        direction = interpret_pressure_direction(
+            {
+                "delta_atm_iv": 5.0,
+                "delta_dealer_stress": 0.1,
+                "delta_gamma_concentration": 0.05,
+            }
+        )
+        self.assertEqual(direction, "PRESSURE_INCREASING")
+
+
 class TestVolArbitrage(unittest.TestCase):
     def test_arbitrage_dislocation(self):
         raw = make_synthetic_option_chain(spot=100.0)
@@ -194,6 +225,7 @@ class TestPrimaryEngine(unittest.TestCase):
             self.assertIn("pressure_metrics", payload)
             self.assertIn("anomaly", payload)
             self.assertIn("vol_regime", payload)
+            self.assertIn("temporal_diff", payload)
             self.assertIn("iv_pressure_score", payload["regime_metrics"])
 
 

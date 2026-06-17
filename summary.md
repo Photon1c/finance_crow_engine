@@ -102,6 +102,7 @@ finance_crow_engine/
 │   ├── anomaly_detection_engine.py        ← IPO/sparse chain anomaly labels
 │   ├── regime_detection_engine.py         ← LOW/HIGH/PANIC vol regime classification
 │   ├── volatility_arbitrage_detector.py   ← cross-ticker IV dislocation detector
+│   ├── temporal_chain_differential_engine.py ← yesterday vs today chain pressure deltas
 │   ├── projection_range_engine.py         ← 7–180 day projection presets
 │   └── ★ streamlit_laser_falcon.py        ← interactive Laser Falcon UI
 │   ├── restoration_field_engine.py        ← F_r, D_c, restoration_ratio

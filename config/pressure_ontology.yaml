@@ -212,3 +212,16 @@ notes:
     labels: NORMAL | POST_EVENT_EXPANSION | IPO_INSTABILITY | GAMMA_COMPRESSION_EVENT | CALL_FOMO_DETECTED | DEALER_STRESS_EVENT
   vol_regime:
     labels: LOW_VOL_REGIME | HIGH_VOL_REGIME | PANIC_REGIME | POST_EVENT_CRUSH | MELT_UP | MEAN_REVERSION_LIKELY
+  temporal_chain_differential:
+    delta_atm_iv:
+      note: day-over-day ATM IV change
+    delta_skew:
+      note: skew asymmetry pressure change
+    delta_gamma_concentration:
+      note: gamma compression score change
+    delta_dealer_stress:
+      note: dealer hedging stress score change
+    delta_vol_surface_curvature:
+      note: smile curvature change
+    pressure_direction:
+      note: PRESSURE_INCREASING | PRESSURE_DISSIPATING | STABLE

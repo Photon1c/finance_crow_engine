@@ -1,7 +1,7 @@
 {
   "ticker": "SPCX",
   "benchmark": "SPY",
-  "timestamp": "2026-06-17T15:57:03Z",
+  "timestamp": "2026-06-17T16:09:13Z",
   "spot": 201.8,
   "chain_date": "06_16_2026",
   "data_health": {
@@ -651,6 +651,14 @@
     "target_ticker": "SPCX",
     "benchmark_ticker": "SPY",
     "target_dte_requested": 45
+  },
+  "temporal_diff": {
+    "ticker": "SPCX",
+    "status": "INSUFFICIENT",
+    "reason": "Need at least two option chain snapshot dates",
+    "available_dates": [
+      "06_16_2026"
+    ]
   },
   "regime_metrics": {
     "iv_pressure_score": 1.0,

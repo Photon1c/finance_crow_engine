@@ -27,6 +27,7 @@ from ou_iv_engine import plot_ou_iv_projection, simulate_ou_iv_paths
 from projection_range_engine import DEFAULT_PROJECTION_DAYS, clamp_projection_days
 from regime_detection_engine import classify_vol_regime
 from stochastic_vol_engine import plot_stochastic_vol_projection, simulate_stochastic_vol_paths
+from temporal_chain_differential_engine import compare_ticker_chain_dates
 from volatility_arbitrage_detector import detect_vol_arbitrage
 from volatility_skew_engine import (
     compare_skew_to_benchmark,
@@ -138,6 +139,7 @@ def _write_summary_md(
     anomaly: dict[str, Any],
     vol_regime: dict[str, Any],
     vol_arbitrage: dict[str, Any],
+    temporal_diff: dict[str, Any],
     artifact_paths: dict[str, str],
 ) -> None:
     skew = skew_report.get("skew", {})
@@ -190,6 +192,17 @@ def _write_summary_md(
             f"- Status: {vol_arbitrage.get('status', 'n/a')}",
             f"- Dislocation: {vol_arbitrage.get('dislocation_pct', 'n/a')}",
             f"- Potential dislocation: {vol_arbitrage.get('potential_dislocation', False)}",
+            "",
+            "## Temporal Chain Differential",
+            f"- Status: {temporal_diff.get('status', temporal_diff.get('pressure_direction', 'n/a'))}",
+            f"- Prior date: {temporal_diff.get('prior_chain_date', 'n/a')}",
+            f"- Current date: {temporal_diff.get('current_chain_date', 'n/a')}",
+            f"- Pressure direction: **{temporal_diff.get('pressure_direction', 'n/a')}**",
+            f"- delta ATM IV: {(temporal_diff.get('deltas') or {}).get('delta_atm_iv', 'n/a')}",
+            f"- delta call wing IV: {(temporal_diff.get('deltas') or {}).get('delta_call_wing_iv', 'n/a')}",
+            f"- delta put wing IV: {(temporal_diff.get('deltas') or {}).get('delta_put_wing_iv', 'n/a')}",
+            f"- delta dealer stress: {(temporal_diff.get('deltas') or {}).get('delta_dealer_stress', 'n/a')}",
+            f"- delta skew asymmetry: {(temporal_diff.get('deltas') or {}).get('delta_skew', 'n/a')}",
             "",
             "## IV Surface",
             f"- Status: {surface_report.get('status', 'n/a')}",
@@ -352,6 +365,12 @@ def run_laser_falcon_analysis(
             benchmark_ticker=benchmark,
         )
 
+    temporal_diff = compare_ticker_chain_dates(
+        ticker,
+        stock_dir=stock_dir,
+        option_dir=option_dir,
+    )
+
     regime_metrics = map_laser_falcon_regime_metrics(
         skew_metrics=skew_report["skew"],
         surface_report=surface_report,
@@ -382,6 +401,7 @@ def run_laser_falcon_analysis(
         anomaly=anomaly,
         vol_regime=vol_regime,
         vol_arbitrage=vol_arbitrage,
+        temporal_diff=temporal_diff,
         artifact_paths=artifact_paths,
     )
 
@@ -400,6 +420,7 @@ def run_laser_falcon_analysis(
         "anomaly": anomaly,
         "vol_regime": vol_regime,
         "vol_arbitrage": vol_arbitrage,
+        "temporal_diff": temporal_diff,
         "regime_metrics": regime_metrics,
         "projection_days": projection_days,
         "artifacts": artifact_paths,

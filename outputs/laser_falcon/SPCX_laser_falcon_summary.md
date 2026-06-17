@@ -1,6 +1,6 @@
 # Laser Falcon Summary — SPCX
 
-Generated: 2026-06-17T15:57:03Z
+Generated: 2026-06-17T16:09:13Z
 
 ## Data Health
 - Status: **SPARSE**
@@ -41,6 +41,17 @@ Generated: 2026-06-17T15:57:03Z
 - Status: INSUFFICIENT
 - Dislocation: n/a
 - Potential dislocation: False
+
+## Temporal Chain Differential
+- Status: INSUFFICIENT
+- Prior date: n/a
+- Current date: n/a
+- Pressure direction: **n/a**
+- delta ATM IV: n/a
+- delta call wing IV: n/a
+- delta put wing IV: n/a
+- delta dealer stress: n/a
+- delta skew asymmetry: n/a
 
 ## IV Surface
 - Status: SKIPPED

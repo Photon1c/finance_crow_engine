@@ -12,7 +12,7 @@ from laser_falcon_primary_engine import build_skew_report, run_laser_falcon_anal
 from options_pressure_mapper import compute_options_pressure_metrics
 from projection_range_engine import PROJECTION_PRESETS, clamp_projection_days
 from regime_detection_engine import classify_vol_regime
-from volatility_arbitrage_detector import detect_vol_arbitrage
+from temporal_chain_differential_engine import compare_ticker_chain_dates, list_option_chain_dates
 from volatility_skew_engine import compute_skew_metrics, plot_iv_skew
 from volatility_surface_engine import plot_iv_surface
 
@@ -60,6 +60,7 @@ tabs = st.tabs(
         "Stochastic Volatility",
         "Pressure Mapping",
         "Anomaly & Regime",
+        "Temporal Differential",
         "Benchmark / Arbitrage",
         "Exported Reports",
     ]
@@ -224,6 +225,14 @@ with tabs[6]:
         st.json({"anomaly": anomaly, "regime": regime})
 
 with tabs[7]:
+    st.subheader("Temporal Chain Differential")
+    if snapshot is not None:
+        dates = list_option_chain_dates(ticker)
+        st.caption(f"Available chain dates: {', '.join(dates) if dates else 'none'}")
+        temporal = compare_ticker_chain_dates(ticker)
+        st.json(temporal)
+
+with tabs[8]:
     st.subheader("Benchmark / Vol Arbitrage")
     if snapshot is not None and bench_snapshot is not None:
         report = build_skew_report(snapshot, expiration=chosen_exp, benchmark_snapshot=bench_snapshot)
@@ -240,7 +249,7 @@ with tabs[7]:
     else:
         st.info("Load both target and benchmark tickers for arbitrage detection.")
 
-with tabs[8]:
+with tabs[9]:
     st.subheader("Exported Reports")
     if run_full and snapshot is not None:
         with st.spinner("Running Laser Falcon pipeline..."):
