@@ -47,6 +47,15 @@ from pressure_field_schema import LRP_DOCTRINE, build_stable_snapshot, write_sta
 
 LRP_ADJUSTED_EXPERIMENTAL_LABEL = "LRP Adjusted (experimental)"
 
+ELASTIC_REBOUND_NOTES = (
+    "Positive gamma may behave like a locked fault: surface volatility compresses "
+    "while hidden positioning strain accumulates.",
+    "Reduced visible pressure is not always true dissipation; some pressure may be "
+    "relocating into a hidden reservoir.",
+    "False stability is flagged when observable pressure falls while hidden strain "
+    "or reservoir pressure rises.",
+)
+
 DEFAULT_TICKER = "SPY"
 DEFAULT_LOOKBACK_DAYS = 120
 DEFAULT_MACD_FAST = 12
@@ -636,6 +645,8 @@ def render_html_dashboard(
         ("F_r", "Restoring Field", f"{latest.get('F_r', float('nan')):.3f}", str(latest.get("field_regime", ""))),
         ("D_c", "Dissipation Capacity", f"{latest.get('D_c', float('nan')):.3f}", f"score {latest.get('dissipation_score', float('nan')):.3f}"),
         ("C_w", "Capillary Wave", f"{latest.get('C_w', float('nan')):.3f}", f"ratio {latest.get('restoration_ratio', float('nan')):.2f}"),
+        ("strain", "Elastic Strain", f"{latest.get('elastic_strain_score', float('nan')):.3f}", str(latest.get("gamma_rebound_regime", ""))),
+        ("reservoir", "Hidden Reservoir", f"{latest.get('hidden_reservoir_pressure', float('nan')):.3f}", f"reloc {latest.get('pressure_relocation_ratio', float('nan')):.2f}"),
     ]
 
     alerts_html = ""
@@ -706,6 +717,19 @@ def render_html_dashboard(
                 f"<tr><td>{label}</td><td>{float(value):.3f}</td></tr>"
             )
     lrp_contrib_html = ""
+    elastic_notes_html = "".join(f"<li>{note}</li>" for note in ELASTIC_REBOUND_NOTES)
+    elastic_panel = f"""
+  <section class="chart-panel">
+    <h2>Elastic Rebound &amp; Hidden Reservoir</h2>
+    <p class="lrp-meta">
+      strain {latest.get('elastic_strain_score', float('nan')):.3f} ·
+      regime {latest.get('gamma_rebound_regime', '—')} ·
+      reservoir {latest.get('hidden_reservoir_pressure', float('nan')):.3f} ·
+      false stability {int(latest.get('false_stability_flag', 0) or 0)}
+    </p>
+    <ul class="lrp-meta" style="margin-top:0.75rem;padding-left:1.2rem;">{elastic_notes_html}</ul>
+  </section>
+"""
     if contrib_lines:
         lrp_contrib_html = f"""
         <table class="contrib-table">
@@ -880,6 +904,8 @@ def render_html_dashboard(
   </section>
 
   {alerts_html}
+
+  {elastic_panel}
 
   <section class="chart-panel">
     <h2>Latent Rupture Potential (LRP)</h2>
@@ -1077,6 +1103,20 @@ def write_pressure_field_report(
         f"- **field_regime:** {latest.get('field_regime', '')}",
         f"- **entropy_score:** {latest.get('entropy_score', float('nan')):.4f}",
         "",
+        "## Elastic Rebound & Hidden Reservoir",
+        "",
+        f"- **elastic_strain_score:** {latest.get('elastic_strain_score', float('nan')):.4f}",
+        f"- **gamma_rebound_regime:** {latest.get('gamma_rebound_regime', '')}",
+        f"- **hidden_reservoir_pressure:** {latest.get('hidden_reservoir_pressure', float('nan')):.4f}",
+        f"- **pressure_relocation_ratio:** {latest.get('pressure_relocation_ratio', float('nan')):.4f}",
+        f"- **false_stability_flag:** {int(latest.get('false_stability_flag', 0) or 0)}",
+        f"- **observability_gap_score:** {latest.get('observability_gap_score', float('nan')):.4f}",
+        "",
+    ])
+    for note in ELASTIC_REBOUND_NOTES:
+        lines.append(f"- _{note}_")
+    lines.extend([
+        "",
         "## Gamma Flip",
         "",
         f"- **Flip strike:** {gamma.get('gamma_flip_strike')}",
@@ -1182,6 +1222,16 @@ def write_latest_json(
             "recursive_pressure_carryover": _finite_float(latest.get("recursive_pressure_carryover"), default=None),
             "observer_feedback_score": _finite_float(latest.get("observer_feedback_score"), default=None),
             "effective_pressure": _finite_float(latest.get("effective_pressure"), default=None),
+        },
+        "elastic_rebound": {
+            "elastic_strain_score": _finite_float(latest.get("elastic_strain_score"), default=None),
+            "gamma_rebound_regime": str(latest.get("gamma_rebound_regime", "") or ""),
+            "hidden_reservoir_pressure": _finite_float(latest.get("hidden_reservoir_pressure"), default=None),
+            "pressure_relocation_ratio": _finite_float(latest.get("pressure_relocation_ratio"), default=None),
+            "false_dissipation_risk": _finite_float(latest.get("false_dissipation_risk"), default=None),
+            "false_stability_flag": int(latest.get("false_stability_flag", 0) or 0),
+            "observability_gap_score": _finite_float(latest.get("observability_gap_score"), default=None),
+            "notes": list(ELASTIC_REBOUND_NOTES),
         },
     }
     if pd.notna(latest.get("stance_quadrant")):

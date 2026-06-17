@@ -18,6 +18,7 @@ from capillary_wave_engine import compute_capillary_wave
 from entropy_engine import compute_entropy
 from field_regime_engine import compute_field_regimes
 from hysteresis_engine import compute_hysteresis
+from elastic_rebound_engine import ELASTIC_REBOUND_EXPORT_COLUMNS, compute_elastic_rebound
 from inward_drift_engine import compute_inward_drift
 from observer_feedback_engine import compute_observer_feedback
 from restoration_field_engine import compute_restoration_field
@@ -61,6 +62,7 @@ PHYSICS_EXPORT_COLUMNS = (
     "observer_state_coupling",
     "field_regime",
     "d_F_r",
+    *ELASTIC_REBOUND_EXPORT_COLUMNS,
 )
 
 
@@ -86,4 +88,5 @@ def enrich_pressure_physics(
         ).fillna(0.0)
         frame["observer_state_coupling"] = 0.0
     frame = compute_field_regimes(frame)
+    frame = compute_elastic_rebound(frame, gamma=gamma)
     return frame

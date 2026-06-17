@@ -13,6 +13,8 @@ Market-state engines extend the stack:
 
 > **LRP doctrine:** Baseline LRP = pressure signal; LRP_adjusted (experimental) = pressure after restoration/capillary/hysteresis/observer modifiers.
 
+> **Elastic rebound layer:** Maps gamma locking, hidden reservoir pressure, and false-stability risk into finance-local metrics. Sacred ontology untouched.
+
 > **For LLM / agent onboarding:** read [`summary.md`](summary.md) first — repo map, architecture, sacred ontology rules, and navigation guide.
 
 ---
@@ -40,6 +42,7 @@ finance_crow_engine/
 ├── pressure_field_schema.py               ← stable latest JSON snapshot keys
 ├── pressure_field_derivatives.py          ← LRP, rate-of-change derivatives, alerts
 ├── pressure_field_physics.py              ← orchestrates restoration/capillary/attractor/hysteresis/entropy
+├── elastic_rebound_engine.py              ← gamma strain, hidden reservoir, false stability
 ├── restoration_field_engine.py            ← F_r restoring field, D_c dissipation capacity
 ├── capillary_wave_engine.py               ← A_f oscillation amplitude, C_w capillary wave score
 ├── attractor_engine.py                    ← equilibrium field strength, deviation
@@ -58,6 +61,7 @@ finance_crow_engine/
 │   ├── test_pressure_field.py
 │   ├── test_pressure_field_physics.py
 │   ├── test_lrp_loop_closure.py
+│   ├── test_elastic_rebound.py
 │   └── test_packet_ontology.py
 │
 ├── data_loader.py                         ← shared stock + option CSV loading
@@ -434,7 +438,7 @@ Core ideas:
 ## Tests
 
 ```powershell
-python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure -v
+python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound -v
 ```
 
 ## Dependencies

@@ -55,7 +55,17 @@ STABLE_EXTENDED_SNAPSHOT_KEYS = (
     "entropy_score",
 )
 
-STABLE_SNAPSHOT_KEYS = STABLE_CORE_SNAPSHOT_KEYS + STABLE_EXTENDED_SNAPSHOT_KEYS
+# Elastic rebound / hidden reservoir — appended after extended keys.
+STABLE_ELASTIC_SNAPSHOT_KEYS = (
+    "elastic_strain_score",
+    "gamma_rebound_regime",
+    "hidden_reservoir_pressure",
+    "pressure_relocation_ratio",
+    "false_stability_flag",
+    "observability_gap_score",
+)
+
+STABLE_SNAPSHOT_KEYS = STABLE_CORE_SNAPSHOT_KEYS + STABLE_EXTENDED_SNAPSHOT_KEYS + STABLE_ELASTIC_SNAPSHOT_KEYS
 
 LRP_DOCTRINE = (
     "Baseline LRP = pressure signal; "
@@ -74,6 +84,13 @@ def safe_float(value: Any) -> Optional[float]:
     if not math.isfinite(number):
         return None
     return number
+
+
+def safe_str(value: Any) -> str:
+    """Convert series/scalar to string; map NA to empty."""
+    if value is None or pd.isna(value):
+        return ""
+    return str(value)
 
 
 def format_timestamp(date_val: Any) -> str:
@@ -106,22 +123,22 @@ def build_stable_snapshot(
         "ticker": ticker.upper(),
         "timestamp": timestamp or format_timestamp(latest.get("Date")),
         "close": close,
-        "macd_regime": str(latest.get("macd_regime", "") or ""),
-        "rsi_regime": str(latest.get("rsi_saturation", latest.get("rsi_regime", "")) or ""),
-        "cvd_regime": str(latest.get("cvd_regime", "") or ""),
+        "macd_regime": safe_str(latest.get("macd_regime")),
+        "rsi_regime": safe_str(latest.get("rsi_saturation", latest.get("rsi_regime"))),
+        "cvd_regime": safe_str(latest.get("cvd_regime")),
         "volume_ratio": safe_float(latest.get("volume_injection", latest.get("E_i"))),
         "vwap_distance_pct": safe_float(latest.get("vwap_distance_pct")),
         "gamma_flip": flip_strike,
         "gamma_flip_distance_pct": flip_distance,
-        "canopy_regime": str(latest.get("regime_label", "") or ""),
+        "canopy_regime": safe_str(latest.get("regime_label")),
         "T_a": safe_float(latest.get("T_a")),
         "T_a_norm": safe_float(latest.get("T_a_norm")),
-        "T_a_regime": str(latest.get("T_a_regime", "") or ""),
+        "T_a_regime": safe_str(latest.get("T_a_regime")),
         "R_o": safe_float(latest.get("R_o")),
         "T_v": safe_float(latest.get("T_v")),
-        "observer_profile": str(latest.get("observer_profile", "") or ""),
+        "observer_profile": safe_str(latest.get("observer_profile")),
         "LRP": safe_float(latest.get("LRP")),
-        "LRP_regime": str(latest.get("LRP_regime", "") or ""),
+        "LRP_regime": safe_str(latest.get("LRP_regime")),
         "d_canopy_pressure": safe_float(latest.get("d_canopy_pressure")),
         "dd_canopy_pressure": safe_float(latest.get("dd_canopy_pressure")),
         "d_R_o": safe_float(latest.get("d_R_o", latest.get("d_observability_R_o"))),
@@ -129,7 +146,7 @@ def build_stable_snapshot(
         "d_gamma_flip_distance": safe_float(latest.get("d_gamma_flip_distance")),
         "d_vwap_distance": safe_float(latest.get("d_vwap_distance", latest.get("d_vwap_attractor_distance"))),
         "LRP_adjusted": safe_float(latest.get("LRP_adjusted")),
-        "LRP_adjusted_regime": str(latest.get("LRP_adjusted_regime", "") or ""),
+        "LRP_adjusted_regime": safe_str(latest.get("LRP_adjusted_regime")),
         "F_r": safe_float(latest.get("F_r")),
         "D_c": safe_float(latest.get("D_c")),
         "restoration_ratio": safe_float(latest.get("restoration_ratio")),
@@ -137,8 +154,14 @@ def build_stable_snapshot(
         "A_micro": safe_float(latest.get("A_micro")),
         "C_w": safe_float(latest.get("C_w")),
         "capillary_wave_score": safe_float(latest.get("capillary_wave_score")),
-        "field_regime": str(latest.get("field_regime", "") or ""),
+        "field_regime": safe_str(latest.get("field_regime")),
         "entropy_score": safe_float(latest.get("entropy_score")),
+        "elastic_strain_score": safe_float(latest.get("elastic_strain_score")),
+        "gamma_rebound_regime": safe_str(latest.get("gamma_rebound_regime")),
+        "hidden_reservoir_pressure": safe_float(latest.get("hidden_reservoir_pressure")),
+        "pressure_relocation_ratio": safe_float(latest.get("pressure_relocation_ratio")),
+        "false_stability_flag": int(latest.get("false_stability_flag", 0) or 0),
+        "observability_gap_score": safe_float(latest.get("observability_gap_score")),
     }
     return {key: values[key] for key in STABLE_SNAPSHOT_KEYS}
 

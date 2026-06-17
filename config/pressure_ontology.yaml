@@ -154,5 +154,21 @@ notes:
     capillary_wave_engine.py = local oscillatory instability near boundary.
   physics_engines: >
     restoration_field_engine, capillary_wave_engine, attractor_engine,
-    hysteresis_engine, entropy_engine, observer_feedback_engine, inward_drift_engine
-    map inward via pressure_field_physics; LRP_adjusted closes the loop in pressure_field_derivatives.
+    hysteresis_engine, entropy_engine, observer_feedback_engine, inward_drift_engine,
+    elastic_rebound_engine map inward via pressure_field_physics; LRP_adjusted closes the loop.
+  elastic_rebound:
+    elastic_strain_score:
+      note: locked-fault strain proxy near gamma boundaries
+    gamma_rebound_regime:
+      note: LOCKED_FAULT | COMPRESSING_STRAIN | PRE_RUPTURE | REBOUND_RELEASE | AFTERSHOCK_REPRICING | NEW_EQUILIBRIUM
+    hidden_reservoir_pressure:
+      primitive: recursion
+      note: deferred pressure when dissipation fails
+    pressure_relocation_ratio:
+      note: relocated vs eliminated pressure fraction
+    false_stability_flag:
+      derived_metric: observer_resolution
+      note: visible stability with rising hidden strain
+    observability_gap_score:
+      derived_metric: observer_resolution
+      key: R_o

@@ -4,6 +4,8 @@
 
 > **LRP doctrine:** Baseline LRP = pressure signal; LRP_adjusted (experimental) = pressure after restoration/capillary/hysteresis/observer modifiers.
 
+> **Elastic rebound layer:** Maps gamma locking, hidden reservoir pressure, and false-stability risk into finance-local metrics. Sacred ontology untouched.
+
 Read this file first when working in this repository. It is the fast orientation layer for agents and future LLMs. Human-oriented CLI detail lives in [`README.md`](README.md).
 
 ---
@@ -84,6 +86,7 @@ finance_crow_engine/
 ├── MARKET-STATE SUPPORT
 │   ├── pressure_field_derivatives.py      ← LRP (sigmoid-calibrated), ROC derivatives, alerts
 │   ├── pressure_field_physics.py          ← orchestrates Phase 1–3 physics engines
+│   ├── elastic_rebound_engine.py          ← gamma strain, hidden reservoir, false stability
 │   ├── restoration_field_engine.py        ← F_r, D_c, restoration_ratio
 │   ├── capillary_wave_engine.py           ← A_f, wave_persistence, C_w
 │   ├── attractor_engine.py                ← equilibrium_field_strength, deviation
@@ -328,7 +331,7 @@ capillary_score = (brownian_noise × wave_persistence × compression) / max(surf
 ## Tests
 
 ```powershell
-python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure -v
+python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound -v
 ```
 
 Expected: **48+ tests**.

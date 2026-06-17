@@ -3,18 +3,18 @@
   "diagnosis": "Legacy model sums five 0..1 pressure terms then divides by a small absorption denominator (~0.3-0.7), causing ratio > 1 and hard clamp saturation.",
   "legacy_formula_audit": {
     "components": {
-      "T_a_norm": 0.559949,
-      "one_minus_R_o": 0.420912,
-      "gamma_flip_pressure": 0.345106,
-      "vwap_dislocation_pressure": 0.469469,
-      "cvd_imbalance_pressure": 0.273292,
+      "T_a_norm": 0.031757,
+      "one_minus_R_o": 0.492733,
+      "gamma_flip_pressure": 0.541091,
+      "vwap_dislocation_pressure": 0.234521,
+      "cvd_imbalance_pressure": 0.368037,
       "B_s": 0.3,
-      "volume_absorption_capacity": 0.390033,
-      "macd_pressure_acceleration": 0.446093
+      "volume_absorption_capacity": 0.28404,
+      "macd_pressure_acceleration": 0.208182
     },
-    "numerator_sum": 2.068728,
-    "denominator": 0.690033,
-    "ratio_before_clamp": 2.998013,
+    "numerator_sum": 1.668139,
+    "denominator": 0.58404,
+    "ratio_before_clamp": 2.856207,
     "LRP_legacy_clamped": 1.0,
     "saturation_driver": "denominator_too_weak"
   },
@@ -29,21 +29,21 @@
     },
     "absorption_damping": 0.12,
     "sigmoid": "1 / (1 + exp(-4.0 * (LRP_raw - 0.5)))",
-    "latest_LRP_raw": 0.394263,
-    "latest_LRP": 0.395812,
+    "latest_LRP_raw": 0.294156,
+    "latest_LRP": 0.305047,
     "latest_LRP_regime": "PRESSURE_BUILDING",
     "latest_LRP_confidence": "HIGH_CONFIDENCE",
     "component_contributions": {
-      "T_a contribution": 0.112,
-      "Observer decay": 0.0842,
-      "Gamma boundary pressure": 0.069,
-      "VWAP dislocation": 0.0704,
-      "CVD imbalance": 0.0273,
-      "MACD acceleration": 0.0669
+      "T_a contribution": 0.0064,
+      "Observer decay": 0.0985,
+      "Gamma boundary pressure": 0.1082,
+      "VWAP dislocation": 0.0352,
+      "CVD imbalance": 0.0368,
+      "MACD acceleration": 0.0312
     },
     "absorption_terms": {
       "B_s": 0.3,
-      "volume_absorption_capacity": 0.390033
+      "volume_absorption_capacity": 0.28404
     }
   },
   "historical_calibration": {
@@ -59,13 +59,13 @@
     },
     "NORMAL_CRUISE_DAY": {
       "label": "NORMAL_CRUISE_DAY",
-      "date": "2017-03-27",
-      "close": 233.62,
+      "date": "2022-04-12",
+      "close": 438.29,
       "LRP": 0.2872,
       "LRP_raw": 0.2728,
       "LRP_regime": "STABLE",
       "LRP_confidence": "HIGH_CONFIDENCE",
-      "rupture_pressure_score": 0.1012
+      "rupture_pressure_score": 0.2883
     },
     "HIGH_PRESSURE_BREAKOUT_DAY": {
       "label": "HIGH_PRESSURE_BREAKOUT_DAY",
@@ -80,30 +80,30 @@
   },
   "loop_closure_adjusted_model": {
     "label": "experimental \u2014 not canonical; restoration-adjusted rupture risk",
-    "latest_LRP_adjusted_raw": 0.300402,
-    "latest_LRP_adjusted": 0.310369,
-    "latest_LRP_adjusted_regime": "PRESSURE_BUILDING",
-    "baseline_LRP": 0.395812,
-    "delta_vs_baseline": -0.085442,
+    "latest_LRP_adjusted_raw": 0.217454,
+    "latest_LRP_adjusted": 0.244127,
+    "latest_LRP_adjusted_regime": "STABLE",
+    "baseline_LRP": 0.305047,
+    "delta_vs_baseline": -0.06092,
     "adjustment_terms": {
       "restoration_damper": 0.55,
-      "capillary_boost": 1.1354,
-      "hysteresis_boost": 1.1938,
-      "observer_boost": 1.0221
+      "capillary_boost": 1.105,
+      "hysteresis_boost": 1.1857,
+      "observer_boost": 1.0259
     },
     "inputs": {
-      "restoration_ratio": 1.6384,
-      "F_r": 0.6485,
-      "D_c": 0.47,
-      "C_w": 0.5414,
-      "recursive_pressure_carryover": 0.8613,
-      "H_s": 0.4309,
-      "observer_feedback_score": 0.1473
+      "restoration_ratio": 2.3981,
+      "F_r": 0.7315,
+      "D_c": 0.4303,
+      "C_w": 0.4198,
+      "recursive_pressure_carryover": 0.825,
+      "H_s": 0.4246,
+      "observer_feedback_score": 0.1725
     }
   },
   "distribution": {
-    "LRP_mean": 0.3022,
-    "LRP_median": 0.2866,
+    "LRP_mean": 0.3023,
+    "LRP_median": 0.2867,
     "LRP_p95": 0.4616,
     "LRP_max": 0.6664,
     "share_above_0_95": 0.0
