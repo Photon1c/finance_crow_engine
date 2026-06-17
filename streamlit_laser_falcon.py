@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 from anomaly_detection_engine import detect_anomalies
+from chain_integrity_engine import assess_chain_integrity
 from laser_falcon_data_adapter import list_expirations, load_laser_falcon_snapshot
 from laser_falcon_primary_engine import build_skew_report, run_laser_falcon_analysis, run_ou_iv_projection, run_stochastic_vol_projection
 from options_pressure_mapper import compute_options_pressure_metrics
@@ -54,6 +56,7 @@ run_full = st.button("Run Full Laser Falcon Analysis", type="primary")
 tabs = st.tabs(
     [
         "Data Health",
+        "Chain Integrity",
         "IV Skew",
         "IV Surface",
         "OU IV Mean Reversion",
@@ -95,6 +98,20 @@ with tabs[0]:
         st.dataframe(snapshot.option_df.head(20), use_container_width=True)
 
 with tabs[1]:
+    st.subheader("Chain Integrity")
+    if snapshot is not None:
+        integrity = assess_chain_integrity(snapshot.option_df, ticker=ticker, spot_price=snapshot.spot)
+        st.metric("Chain health score", integrity.get("chain_health_score"))
+        st.write(f"Status: **{integrity.get('status')}**")
+        st.json(integrity)
+        if integrity.get("strikes_by_expiration"):
+            st.table(
+                pd.DataFrame(
+                    [{"expiration": k, "strikes": v} for k, v in integrity["strikes_by_expiration"].items()]
+                )
+            )
+
+with tabs[2]:
     st.subheader("IV Skew")
     if snapshot is not None and not snapshot.option_df.empty:
         metrics = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
@@ -115,7 +132,7 @@ with tabs[1]:
     else:
         st.warning("No option data loaded.")
 
-with tabs[2]:
+with tabs[3]:
     st.subheader("IV Surface")
     if snapshot is not None:
         path, surface = plot_iv_surface(
@@ -127,7 +144,7 @@ with tabs[2]:
         st.json({k: v for k, v in surface.items() if k != "grid"})
         st.image(str(path))
 
-with tabs[3]:
+with tabs[4]:
     st.subheader("OU IV Mean Reversion")
     if snapshot is not None:
         skew = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
@@ -159,7 +176,7 @@ with tabs[3]:
         )
         st.image(str(ou_path))
 
-with tabs[4]:
+with tabs[5]:
     st.subheader("Stochastic Volatility")
     if snapshot is not None:
         skew = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
@@ -190,19 +207,21 @@ with tabs[4]:
         )
         st.image(str(stoch_path))
 
-with tabs[5]:
+with tabs[6]:
     st.subheader("Options Pressure Mapping")
     if snapshot is not None:
         skew = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
+        integrity = assess_chain_integrity(snapshot.option_df, ticker=ticker, spot_price=snapshot.spot)
         pm = compute_options_pressure_metrics(
             option_df=snapshot.option_df,
             stock_df=snapshot.stock_df,
             spot=snapshot.spot,
             skew_metrics=skew,
+            chain_integrity=integrity,
         )
         st.json(pm)
 
-with tabs[6]:
+with tabs[7]:
     st.subheader("Anomaly & Regime")
     if snapshot is not None:
         skew = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
@@ -215,24 +234,30 @@ with tabs[6]:
         bench_skew = None
         if bench_snapshot is not None:
             bench_skew = compute_skew_metrics(bench_snapshot.option_df, spot=bench_snapshot.spot)
+        integrity = assess_chain_integrity(snapshot.option_df, ticker=ticker, spot_price=snapshot.spot)
+        temporal = compare_ticker_chain_dates(ticker)
         anomaly = detect_anomalies(
             skew_metrics=skew,
             pressure_metrics=pm,
             benchmark_skew=bench_skew,
             data_health=snapshot.data_health,
+            chain_integrity=integrity,
+            compatibility=temporal.get("compatibility"),
         )
         regime = classify_vol_regime(skew_metrics=skew, pressure_metrics=pm, anomaly=anomaly)
         st.json({"anomaly": anomaly, "regime": regime})
 
-with tabs[7]:
+with tabs[8]:
     st.subheader("Temporal Chain Differential")
     if snapshot is not None:
         dates = list_option_chain_dates(ticker)
         st.caption(f"Available chain dates: {', '.join(dates) if dates else 'none'}")
         temporal = compare_ticker_chain_dates(ticker)
+        if temporal.get("status") in ("INVALID", "DEGRADED"):
+            st.warning(temporal.get("reason", "Temporal comparison confidence reduced"))
         st.json(temporal)
 
-with tabs[8]:
+with tabs[9]:
     st.subheader("Benchmark / Vol Arbitrage")
     if snapshot is not None and bench_snapshot is not None:
         report = build_skew_report(snapshot, expiration=chosen_exp, benchmark_snapshot=bench_snapshot)
@@ -249,7 +274,7 @@ with tabs[8]:
     else:
         st.info("Load both target and benchmark tickers for arbitrage detection.")
 
-with tabs[9]:
+with tabs[10]:
     st.subheader("Exported Reports")
     if run_full and snapshot is not None:
         with st.spinner("Running Laser Falcon pipeline..."):

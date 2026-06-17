@@ -7,6 +7,7 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+from chain_integrity_engine import data_quality_confidence
 from volatility_skew_engine import SPOT_RANGE_PCT, compute_skew_metrics, filter_strikes_near_spot
 
 REALIZED_VOL_WINDOW = 30
@@ -115,9 +116,11 @@ def compute_options_pressure_metrics(
     spot: float,
     skew_metrics: Optional[dict[str, Any]] = None,
     expiration: Optional[str] = None,
+    chain_integrity: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Full options → pressure metric bundle."""
     skew = skew_metrics or compute_skew_metrics(option_df, spot=spot, expiration=expiration)
+    confidence = data_quality_confidence(chain_integrity) if chain_integrity else 1.0
     atm_iv = skew.get("atm_iv")
     realized_vol = compute_realized_volatility(stock_df)
 
@@ -135,12 +138,13 @@ def compute_options_pressure_metrics(
     )
 
     return {
-        "gamma_compression_score": round(gamma_compression, 4),
+        "gamma_compression_score": round(gamma_compression * confidence, 4),
         "volatility_expansion_score": vol_expansion,
         "skew_asymmetry_pressure": skew_pressure,
-        "dealer_hedging_stress_score": round(dealer_stress, 4),
+        "dealer_hedging_stress_score": round(dealer_stress * confidence, 4),
         "realized_vol_30d_pct": round(realized_vol, 4) if not np.isnan(realized_vol) else None,
         "atm_iv_pct": atm_iv,
+        "data_quality_confidence": round(confidence, 4),
     }
 
 

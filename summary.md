@@ -6,7 +6,7 @@
 
 > **Elastic rebound layer:** Maps gamma locking, hidden reservoir pressure, and false-stability risk into finance-local metrics. Sacred ontology untouched.
 
-> **Laser Falcon:** CSV-driven options research engine — IV skew/surface, OU mean reversion, stochastic vol projections. Maps inward via `config/pressure_ontology.yaml` only.
+> **Laser Falcon:** CSV-driven options research engine — IV skew/surface, OU mean reversion, stochastic vol projections. Maps inward via `config/pressure_ontology.yaml` only. Option chain temporal analysis requires comparable contract universes; Contract Universe Drift (CUD) is detected and reported.
 
 Read this file first when working in this repository. It is the fast orientation layer for agents and future LLMs. Human-oriented CLI detail lives in [`README.md`](README.md).
 
@@ -103,6 +103,8 @@ finance_crow_engine/
 │   ├── regime_detection_engine.py         ← LOW/HIGH/PANIC vol regime classification
 │   ├── volatility_arbitrage_detector.py   ← cross-ticker IV dislocation detector
 │   ├── temporal_chain_differential_engine.py ← yesterday vs today chain pressure deltas
+│   ├── chain_integrity_engine.py          ← single-snapshot chain health diagnostics
+│   ├── chain_compatibility_engine.py      ← temporal CUD / overlap guardrails
 │   ├── projection_range_engine.py         ← 7–180 day projection presets
 │   └── ★ streamlit_laser_falcon.py        ← interactive Laser Falcon UI
 │   ├── restoration_field_engine.py        ← F_r, D_c, restoration_ratio
@@ -351,7 +353,7 @@ capillary_score = (brownian_noise × wave_persistence × compression) / max(surf
 ## Tests
 
 ```powershell
-python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound tests.test_laser_falcon -v
+python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound tests.test_laser_falcon tests.test_chain_integrity tests.test_chain_compatibility -v
 ```
 
 Expected: **48+ tests**.

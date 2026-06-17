@@ -15,6 +15,7 @@ from typing import Any, Optional
 import numpy as np
 
 from anomaly_detection_engine import detect_anomalies
+from chain_integrity_engine import assess_chain_integrity, json_safe_integrity, validate_chain_for_analysis
 from laser_falcon_data_adapter import (
     DEFAULT_OPTION_DIR,
     DEFAULT_STOCK_DIR,
@@ -70,7 +71,7 @@ def build_skew_report(
 
 
 def build_surface_report(snapshot: LaserFalconSnapshot) -> dict[str, Any]:
-    return build_iv_surface_grid(snapshot.option_df, spot=snapshot.spot)
+    return build_iv_surface_grid(snapshot.option_df, spot=snapshot.spot, ticker=snapshot.ticker)
 
 
 def run_ou_iv_projection(
@@ -140,6 +141,7 @@ def _write_summary_md(
     vol_regime: dict[str, Any],
     vol_arbitrage: dict[str, Any],
     temporal_diff: dict[str, Any],
+    chain_integrity: dict[str, Any],
     artifact_paths: dict[str, str],
 ) -> None:
     skew = skew_report.get("skew", {})
@@ -154,7 +156,17 @@ def _write_summary_md(
         f"- Expirations: {snapshot.data_health.get('n_expirations', 0)}",
         f"- IV coverage: {snapshot.data_health.get('iv_coverage_pct', 0)}%",
         "",
+        "## Chain Integrity",
+        f"- Status: **{chain_integrity.get('status', 'n/a')}**",
+        f"- Health score: {chain_integrity.get('chain_health_score', 'n/a')}",
+        f"- Blank expirations: {chain_integrity.get('blank_expiration_count', 0)}",
+        f"- Missing IV ratio: {chain_integrity.get('missing_iv_ratio', 'n/a')}",
+        f"- Wide spread ratio: {chain_integrity.get('wide_spread_ratio', 'n/a')}",
+        f"- Duplicate contracts: {chain_integrity.get('duplicate_contract_count', 0)}",
+        "",
     ]
+    for warning in chain_integrity.get("warnings", []):
+        lines.append(f"- Chain warning: {warning}")
     for warning in snapshot.data_health.get("warnings", []):
         lines.append(f"- Warning: {warning}")
     lines.extend(
@@ -203,6 +215,8 @@ def _write_summary_md(
             f"- delta put wing IV: {(temporal_diff.get('deltas') or {}).get('delta_put_wing_iv', 'n/a')}",
             f"- delta dealer stress: {(temporal_diff.get('deltas') or {}).get('delta_dealer_stress', 'n/a')}",
             f"- delta skew asymmetry: {(temporal_diff.get('deltas') or {}).get('delta_skew', 'n/a')}",
+            f"- Compatibility: {((temporal_diff.get('compatibility') or {}).get('status', 'n/a'))}",
+            f"- Contract universe drift: {((temporal_diff.get('compatibility') or {}).get('contract_universe_drift_flag', False))}",
             "",
             "## IV Surface",
             f"- Status: {surface_report.get('status', 'n/a')}",
@@ -264,6 +278,9 @@ def run_laser_falcon_analysis(
     projection_days = clamp_projection_days(projection_days)
 
     snapshot = load_laser_falcon_snapshot(ticker, stock_dir=stock_dir, option_dir=option_dir)
+    chain_integrity = json_safe_integrity(
+        assess_chain_integrity(snapshot.option_df, ticker=ticker, spot_price=snapshot.spot)
+    )
     bench_snapshot: Optional[LaserFalconSnapshot] = None
     if benchmark != ticker:
         try:
@@ -335,11 +352,18 @@ def run_laser_falcon_analysis(
         xi=stoch_xi,
     )
 
+    temporal_diff = compare_ticker_chain_dates(
+        ticker,
+        stock_dir=stock_dir,
+        option_dir=option_dir,
+    )
+
     pressure_metrics = compute_options_pressure_metrics(
         option_df=snapshot.option_df,
         stock_df=snapshot.stock_df,
         spot=snapshot.spot,
         skew_metrics=skew_report["skew"],
+        chain_integrity=chain_integrity,
     )
     bench_skew = bench_metrics if bench_metrics else None
     anomaly = detect_anomalies(
@@ -347,6 +371,8 @@ def run_laser_falcon_analysis(
         pressure_metrics=pressure_metrics,
         benchmark_skew=bench_skew,
         data_health=snapshot.data_health,
+        chain_integrity=chain_integrity,
+        compatibility=temporal_diff.get("compatibility"),
     )
     vol_regime = classify_vol_regime(
         skew_metrics=skew_report["skew"],
@@ -364,12 +390,6 @@ def run_laser_falcon_analysis(
             target_ticker=ticker,
             benchmark_ticker=benchmark,
         )
-
-    temporal_diff = compare_ticker_chain_dates(
-        ticker,
-        stock_dir=stock_dir,
-        option_dir=option_dir,
-    )
 
     regime_metrics = map_laser_falcon_regime_metrics(
         skew_metrics=skew_report["skew"],
@@ -402,6 +422,7 @@ def run_laser_falcon_analysis(
         vol_regime=vol_regime,
         vol_arbitrage=vol_arbitrage,
         temporal_diff=temporal_diff,
+        chain_integrity=chain_integrity,
         artifact_paths=artifact_paths,
     )
 
@@ -412,6 +433,7 @@ def run_laser_falcon_analysis(
         "spot": snapshot.spot,
         "chain_date": snapshot.chain_date,
         "data_health": snapshot.data_health,
+        "chain_integrity": chain_integrity,
         "skew": skew_report,
         "surface": {k: v for k, v in surface_report.items() if k != "grid"},
         "ou_iv": ou_export,

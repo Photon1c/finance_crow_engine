@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from chain_integrity_engine import clean_chain_expirations
 from implied_vol_solver import fill_missing_iv
 
 DEFAULT_OUTPUT_DIR = Path("outputs/laser_falcon")
@@ -20,13 +21,15 @@ WING_OTM_PCT = 0.03
 OVERPRICED_WING_THRESHOLD = 1.12
 
 
-def _prepare_iv_frame(option_df: pd.DataFrame, *, spot: float) -> pd.DataFrame:
-    df = fill_missing_iv(option_df, spot=spot)
+def _prepare_iv_frame(option_df: pd.DataFrame, *, spot: float) -> tuple[pd.DataFrame, list[str]]:
+    cleaned, clean_diag = clean_chain_expirations(option_df)
+    warnings = list(clean_diag.get("warnings", []))
+    df = fill_missing_iv(cleaned, spot=spot)
     df = df[df["IV"].notna() & (df["IV"] > 0)].copy()
     if df.empty:
-        return df
+        return df, warnings
     df["iv_pct"] = df["IV"] * 100.0 if df["IV"].max() <= 3.0 else df["IV"]
-    return df
+    return df, warnings
 
 
 def filter_strikes_near_spot(df: pd.DataFrame, spot: float, *, range_pct: float = SPOT_RANGE_PCT) -> pd.DataFrame:
@@ -106,9 +109,9 @@ def compute_skew_metrics(
     spot_range_pct: float = SPOT_RANGE_PCT,
 ) -> dict[str, Any]:
     """Compute skew metrics for one expiration (or nearest available)."""
-    df = _prepare_iv_frame(option_df, spot=spot)
+    df, chain_warnings = _prepare_iv_frame(option_df, spot=spot)
     if df.empty:
-        return _empty_skew_metrics(expiration)
+        return _empty_skew_metrics(expiration, chain_warnings=chain_warnings)
 
     expirations = sorted(df["Expiration Date"].unique().tolist())
     chosen = expiration if expiration in expirations else expirations[0]
@@ -172,11 +175,12 @@ def compute_skew_metrics(
         "call_fomo_flag": call_fomo_flag,
         "put_fear_flag": put_fear_flag,
         "surface_curvature": round(smile_curvature, 6),
+        "chain_warnings": chain_warnings,
         "status": "OK",
     }
 
 
-def _empty_skew_metrics(expiration: Optional[str]) -> dict[str, Any]:
+def _empty_skew_metrics(expiration: Optional[str], *, chain_warnings: Optional[list[str]] = None) -> dict[str, Any]:
     return {
         "expiration": expiration or "",
         "spot_range_pct": SPOT_RANGE_PCT,
@@ -193,6 +197,7 @@ def _empty_skew_metrics(expiration: Optional[str]) -> dict[str, Any]:
         "call_fomo_flag": False,
         "put_fear_flag": False,
         "surface_curvature": 0.0,
+        "chain_warnings": chain_warnings or [],
         "status": "INSUFFICIENT",
     }
 
@@ -211,7 +216,7 @@ def plot_iv_skew(
     output_path = Path(output_path or DEFAULT_OUTPUT_DIR / f"{ticker.upper()}_iv_skew.png")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    df = _prepare_iv_frame(option_df, spot=spot)
+    df, _ = _prepare_iv_frame(option_df, spot=spot)
     fig, ax = plt.subplots(figsize=(10, 6))
     if df.empty:
         ax.text(0.5, 0.5, "Insufficient IV data for skew plot", ha="center", va="center", transform=ax.transAxes)

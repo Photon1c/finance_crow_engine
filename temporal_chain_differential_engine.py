@@ -11,6 +11,8 @@ from typing import Any, Optional, Union
 import numpy as np
 import pandas as pd
 
+from chain_compatibility_engine import assess_snapshot_compatibility, validate_snapshot_compatibility
+from chain_integrity_engine import assess_chain_integrity, clean_chain_expirations
 from data_loader import DEFAULT_OPTION_DIR, DEFAULT_STOCK_DIR, load_option_chain_data, load_stock_data
 from laser_falcon_data_adapter import (
     LaserFalconSnapshot,
@@ -199,6 +201,30 @@ def compare_option_chain_snapshots(
     prior_bundle = _load_chain_input(prior, ticker=ticker, stock_dir=stock_dir, option_dir=option_dir)
     current_bundle = _load_chain_input(current, ticker=ticker, stock_dir=stock_dir, option_dir=option_dir)
 
+    compatibility = assess_snapshot_compatibility(
+        prior_bundle["option_df"],
+        current_bundle["option_df"],
+        ticker=ticker,
+        spot_prior=prior_bundle["spot"],
+        spot_current=current_bundle["spot"],
+    )
+
+    base_result = {
+        "ticker": ticker.upper(),
+        "prior_chain_date": prior_bundle.get("chain_date", ""),
+        "current_chain_date": current_bundle.get("chain_date", ""),
+        "compatibility": compatibility,
+    }
+
+    if compatibility["status"] == "INVALID":
+        return {
+            **base_result,
+            "status": "INVALID",
+            "reason": "Contract universe drift detected",
+            "warnings": compatibility.get("warnings", []),
+            "errors": compatibility.get("errors", []),
+        }
+
     prior_state = extract_chain_pressure_state(
         prior_bundle["option_df"],
         prior_bundle["stock_df"],
@@ -232,16 +258,23 @@ def compare_option_chain_snapshots(
     }
     direction = interpret_pressure_direction(deltas)
 
-    return {
-        "ticker": ticker.upper(),
-        "prior_chain_date": prior_bundle.get("chain_date", ""),
-        "current_chain_date": current_bundle.get("chain_date", ""),
+    result = {
+        **base_result,
         "prior_state": prior_state,
         "current_state": current_state,
         "deltas": deltas,
         "pressure_direction": direction,
         "interpretation": _interpretation_text(deltas, direction),
     }
+    if compatibility["status"] == "DEGRADED":
+        result["status"] = "DEGRADED"
+        result["warnings"] = compatibility.get("warnings", []) + [
+            "Temporal interpretation confidence reduced due to contract universe drift"
+        ]
+        result["reason"] = "Comparable with reduced confidence"
+    else:
+        result["status"] = "OK"
+    return result
 
 
 def compare_ticker_chain_dates(
@@ -273,7 +306,8 @@ def compare_ticker_chain_dates(
         stock_dir=stock_dir,
         option_dir=option_dir,
     )
-    result["status"] = "OK"
+    if "status" not in result:
+        result["status"] = "OK"
     return result
 
 

@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
+from chain_integrity_engine import validate_chain_for_analysis
 from implied_vol_solver import fill_missing_iv
 
 DEFAULT_OUTPUT_DIR = Path("outputs/laser_falcon")
@@ -67,8 +68,19 @@ def build_iv_surface_grid(
     *,
     spot: float,
     use_moneyness: bool = True,
+    ticker: Optional[str] = None,
 ) -> dict[str, Any]:
     """Interpolate IV onto a regular grid; tolerates thin chains."""
+    validation = validate_chain_for_analysis(option_df, "surface", ticker=ticker, spot_price=spot)
+    if not validation["valid"]:
+        return {
+            "status": "SKIPPED",
+            "reason": validation["reason"],
+            "chain_integrity": validation["integrity"],
+            "density": {"sufficient": False, "reason": validation["reason"]},
+            "grid": None,
+        }
+
     df = _prepare_surface_points(option_df, spot=spot)
     density = assess_surface_density(df)
     if not density["sufficient"] or df.empty:
@@ -126,7 +138,7 @@ def plot_iv_surface(
     """Save 3D IV surface plot or insufficient-density notice."""
     output_path = Path(output_path or DEFAULT_OUTPUT_DIR / f"{ticker.upper()}_iv_surface.png")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    surface = build_iv_surface_grid(option_df, spot=spot, use_moneyness=use_moneyness)
+    surface = build_iv_surface_grid(option_df, spot=spot, use_moneyness=use_moneyness, ticker=ticker)
 
     fig = plt.figure(figsize=(10, 7))
     ax = fig.add_subplot(111, projection="3d")

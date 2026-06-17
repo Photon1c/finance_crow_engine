@@ -16,7 +16,7 @@ Market-state engines extend the stack:
 
 > **Elastic rebound layer:** Maps gamma locking, hidden reservoir pressure, and false-stability risk into finance-local metrics. Sacred ontology untouched.
 
-> **Laser Falcon:** CSV-driven options research engine — IV skew/surface, OU mean reversion, stochastic vol projections. Sacred ontology untouched; map inward via `config/pressure_ontology.yaml`.
+> **Laser Falcon:** CSV-driven options research engine — IV skew/surface, OU mean reversion, stochastic vol projections. Sacred ontology untouched; map inward via `config/pressure_ontology.yaml`. Temporal analysis requires comparable contract universes; Contract Universe Drift is detected and reported. Sparse IPO chains may support skew but not surface or temporal compare.
 
 > **For LLM / agent onboarding:** read [`summary.md`](summary.md) first — repo map, architecture, sacred ontology rules, and navigation guide.
 
@@ -54,6 +54,9 @@ finance_crow_engine/
 ├── ou_iv_engine.py                        ← OU IV mean reversion paths
 ├── stochastic_vol_engine.py               ← Heston-like vol cones
 ├── laser_falcon_regime_mapper.py          ← map vol metrics to pressure vocabulary
+├── temporal_chain_differential_engine.py  ← yesterday vs today chain pressure deltas
+├── chain_integrity_engine.py              ← single-snapshot chain health diagnostics
+├── chain_compatibility_engine.py          ← temporal CUD / overlap guardrails
 ├── ★ streamlit_laser_falcon.py            ← interactive Laser Falcon UI
 ├── restoration_field_engine.py            ← F_r restoring field, D_c dissipation capacity
 ├── capillary_wave_engine.py               ← A_f oscillation amplitude, C_w capillary wave score
@@ -75,6 +78,8 @@ finance_crow_engine/
 │   ├── test_lrp_loop_closure.py
 │   ├── test_elastic_rebound.py
 │   ├── test_laser_falcon.py
+│   ├── test_chain_integrity.py
+│   ├── test_chain_compatibility.py
 │   └── test_packet_ontology.py
 │
 ├── data_loader.py                         ← shared stock + option CSV loading
@@ -453,7 +458,7 @@ Core ideas:
 ## Tests
 
 ```powershell
-python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound tests.test_laser_falcon -v
+python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure tests.test_elastic_rebound tests.test_laser_falcon tests.test_chain_integrity tests.test_chain_compatibility -v
 ```
 
 ## Dependencies

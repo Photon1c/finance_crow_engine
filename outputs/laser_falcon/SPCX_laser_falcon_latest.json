@@ -1,7 +1,7 @@
 {
   "ticker": "SPCX",
   "benchmark": "SPY",
-  "timestamp": "2026-06-17T16:09:13Z",
+  "timestamp": "2026-06-17T17:06:00Z",
   "spot": 201.8,
   "chain_date": "06_16_2026",
   "data_health": {
@@ -13,6 +13,42 @@
     "iv_coverage_pct": 85.71,
     "quote_unstable_pct": 0.0,
     "warnings": []
+  },
+  "chain_integrity": {
+    "status": "DEGRADED",
+    "chain_health_score": 0.6171,
+    "ticker": "SPCX",
+    "spot_price": 201.8,
+    "row_count": 14,
+    "valid_row_count": 14,
+    "expiration_count": 2,
+    "blank_expiration_count": 0,
+    "blank_expiration_ratio": 0.0,
+    "malformed_expiration_count": 0,
+    "strikes_total": 7,
+    "strikes_by_expiration": {
+      "Thu Jun 18 2026": 6,
+      "Wed Jun 24 2026": 1
+    },
+    "min_strikes_per_expiration": 1,
+    "missing_iv_ratio": 0.1429,
+    "missing_bid_ask_ratio": 0.1429,
+    "missing_gamma_ratio": 0.1429,
+    "missing_open_interest_ratio": 1.0,
+    "duplicate_contract_count": 0,
+    "wide_spread_ratio": 0.0,
+    "zero_volume_ratio": 0.1429,
+    "zero_open_interest_ratio": 1.0,
+    "warnings": [
+      "Minimum strikes per expiration is 1"
+    ],
+    "errors": [],
+    "cleaning": {
+      "rows_removed": 0,
+      "blank_expiration_rows": 0,
+      "malformed_expiration_rows": 0,
+      "warnings": []
+    }
   },
   "skew": {
     "ticker": "SPCX",
@@ -32,6 +68,7 @@
       "call_fomo_flag": false,
       "put_fear_flag": false,
       "surface_curvature": 0.019171,
+      "chain_warnings": [],
       "status": "OK"
     },
     "benchmark": {
@@ -51,6 +88,7 @@
         "call_fomo_flag": false,
         "put_fear_flag": false,
         "surface_curvature": 0.019171,
+        "chain_warnings": [],
         "status": "OK"
       },
       "benchmark": {
@@ -69,6 +107,7 @@
         "call_fomo_flag": false,
         "put_fear_flag": false,
         "surface_curvature": 0.015,
+        "chain_warnings": [],
         "status": "OK"
       },
       "atm_iv_delta": 155.185,
@@ -83,12 +122,46 @@
   },
   "surface": {
     "status": "SKIPPED",
+    "reason": "Insufficient strike density for surface",
+    "chain_integrity": {
+      "status": "DEGRADED",
+      "chain_health_score": 0.6171,
+      "ticker": "SPCX",
+      "spot_price": 201.8,
+      "row_count": 14,
+      "valid_row_count": 14,
+      "expiration_count": 2,
+      "blank_expiration_count": 0,
+      "blank_expiration_ratio": 0.0,
+      "malformed_expiration_count": 0,
+      "strikes_total": 7,
+      "strikes_by_expiration": {
+        "Thu Jun 18 2026": 6,
+        "Wed Jun 24 2026": 1
+      },
+      "min_strikes_per_expiration": 1,
+      "missing_iv_ratio": 0.1429,
+      "missing_bid_ask_ratio": 0.1429,
+      "missing_gamma_ratio": 0.1429,
+      "missing_open_interest_ratio": 1.0,
+      "duplicate_contract_count": 0,
+      "wide_spread_ratio": 0.0,
+      "zero_volume_ratio": 0.1429,
+      "zero_open_interest_ratio": 1.0,
+      "warnings": [
+        "Minimum strikes per expiration is 1"
+      ],
+      "errors": [],
+      "cleaning": {
+        "rows_removed": 0,
+        "blank_expiration_rows": 0,
+        "malformed_expiration_rows": 0,
+        "warnings": []
+      }
+    },
     "density": {
       "sufficient": false,
-      "reason": "single expiration only \u2014 2D skew preferred",
-      "n_points": 12,
-      "n_expirations": 1,
-      "n_strikes": 6
+      "reason": "Insufficient strike density for surface"
     }
   },
   "ou_iv": {
@@ -614,12 +687,13 @@
     "terminal_vol_p50": 1.6816206272140257
   },
   "pressure_metrics": {
-    "gamma_compression_score": 0.0126,
+    "gamma_compression_score": 0.0078,
     "volatility_expansion_score": null,
     "skew_asymmetry_pressure": -0.0533,
     "dealer_hedging_stress_score": 0.0,
     "realized_vol_30d_pct": null,
-    "atm_iv_pct": 168.525
+    "atm_iv_pct": 168.525,
+    "data_quality_confidence": 0.6171
   },
   "anomaly": {
     "labels": [
@@ -634,10 +708,14 @@
       "put_skew_ratio": 0.9909,
       "surface_curvature": 0.019171,
       "volatility_expansion_score": null,
-      "gamma_compression_score": 0.0126,
+      "gamma_compression_score": 0.0078,
       "dealer_hedging_stress_score": 0.0,
       "data_status": "SPARSE"
-    }
+    },
+    "data_quality_labels": [
+      "CHAIN_DEGRADED",
+      "INSUFFICIENT_CHAIN_DEPTH"
+    ]
   },
   "vol_regime": {
     "regime": "HIGH_VOL_REGIME",
@@ -666,11 +744,11 @@
     "surface_dislocation_score": 0.55,
     "vol_reversion_pressure": 0.0433,
     "option_liquidity_risk": 0.0572,
-    "gamma_compression_score": 0.0126,
+    "gamma_compression_score": 0.0078,
     "volatility_expansion_score": null,
     "dealer_hedging_stress_score": 0.0,
     "energy_injection_proxy": 0.25,
-    "boundary_stress_proxy": 0.0126,
+    "boundary_stress_proxy": 0.0078,
     "rupture_pressure_contributor": 0.016,
     "lrp_contributor": 0.6901,
     "observer_blindspot_proxy": 0.0

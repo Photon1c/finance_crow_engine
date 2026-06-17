@@ -225,3 +225,16 @@ notes:
       note: smile curvature change
     pressure_direction:
       note: PRESSURE_INCREASING | PRESSURE_DISSIPATING | STABLE
+  chain_integrity:
+    chain_health_score:
+      note: single-snapshot structural completeness 0-1
+    contract_universe_drift_flag:
+      note: temporal CUD detected between snapshots
+    expiration_overlap_score:
+      note: shared expiration overlap for temporal compare
+    strike_overlap_score:
+      note: shared strike overlap for temporal compare
+    compatibility_score:
+      note: combined temporal comparability score
+    data_quality_confidence:
+      note: pressure metric confidence modifier from chain health

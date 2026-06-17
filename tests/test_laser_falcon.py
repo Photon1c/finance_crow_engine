@@ -225,6 +225,7 @@ class TestPrimaryEngine(unittest.TestCase):
             self.assertIn("pressure_metrics", payload)
             self.assertIn("anomaly", payload)
             self.assertIn("vol_regime", payload)
+            self.assertIn("chain_integrity", payload)
             self.assertIn("temporal_diff", payload)
             self.assertIn("iv_pressure_score", payload["regime_metrics"])
 

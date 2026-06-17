@@ -91,12 +91,39 @@ def classify_anomalies(features: dict[str, Any], *, skew_metrics: dict[str, Any]
     }
 
 
+DATA_QUALITY_LABELS = (
+    "CHAIN_DEGRADED",
+    "CONTRACT_UNIVERSE_DRIFT",
+    "INSUFFICIENT_CHAIN_DEPTH",
+)
+
+
+def classify_data_quality_labels(
+    *,
+    chain_integrity: Optional[dict[str, Any]] = None,
+    compatibility: Optional[dict[str, Any]] = None,
+) -> list[str]:
+    labels: list[str] = []
+    integrity = chain_integrity or {}
+    compat = compatibility or {}
+
+    if integrity.get("status") in ("DEGRADED", "INVALID"):
+        labels.append("CHAIN_DEGRADED")
+    if integrity.get("expiration_count", 0) < 2 or integrity.get("min_strikes_per_expiration", 0) < 5:
+        labels.append("INSUFFICIENT_CHAIN_DEPTH")
+    if compat.get("contract_universe_drift_flag") or compat.get("status") == "INVALID":
+        labels.append("CONTRACT_UNIVERSE_DRIFT")
+    return labels
+
+
 def detect_anomalies(
     *,
     skew_metrics: dict[str, Any],
     pressure_metrics: dict[str, Any],
     benchmark_skew: Optional[dict[str, Any]] = None,
     data_health: Optional[dict[str, Any]] = None,
+    chain_integrity: Optional[dict[str, Any]] = None,
+    compatibility: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     features = build_anomaly_features(
         skew_metrics=skew_metrics,
@@ -104,4 +131,9 @@ def detect_anomalies(
         benchmark_skew=benchmark_skew,
         data_health=data_health,
     )
-    return classify_anomalies(features, skew_metrics=skew_metrics)
+    market = classify_anomalies(features, skew_metrics=skew_metrics)
+    market["data_quality_labels"] = classify_data_quality_labels(
+        chain_integrity=chain_integrity,
+        compatibility=compatibility,
+    )
+    return market

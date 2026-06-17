@@ -1,6 +1,6 @@
 # Laser Falcon Summary — SPCX
 
-Generated: 2026-06-17T16:09:13Z
+Generated: 2026-06-17T17:06:00Z
 
 ## Data Health
 - Status: **SPARSE**
@@ -8,6 +8,15 @@ Generated: 2026-06-17T16:09:13Z
 - Expirations: 2
 - IV coverage: 85.71%
 
+## Chain Integrity
+- Status: **DEGRADED**
+- Health score: 0.6171
+- Blank expirations: 0
+- Missing IV ratio: 0.1429
+- Wide spread ratio: 0.0
+- Duplicate contracts: 0
+
+- Chain warning: Minimum strikes per expiration is 1
 
 ## IV Skew
 - Expiration: Thu Jun 18 2026
@@ -22,7 +31,7 @@ Generated: 2026-06-17T16:09:13Z
 - Skew inversion: True
 
 ## Options Pressure Metrics
-- Gamma compression: 0.0126
+- Gamma compression: 0.0078
 - Vol expansion (ATM/realized): None
 - Skew asymmetry pressure: -0.0533
 - Dealer hedging stress: 0.0
@@ -52,10 +61,12 @@ Generated: 2026-06-17T16:09:13Z
 - delta put wing IV: n/a
 - delta dealer stress: n/a
 - delta skew asymmetry: n/a
+- Compatibility: n/a
+- Contract universe drift: False
 
 ## IV Surface
 - Status: SKIPPED
-- Reason: single expiration only — 2D skew preferred
+- Reason: Insufficient strike density for surface
 
 ## OU IV Mean Reversion
 - IV0: 1.6852500000000001
@@ -73,7 +84,7 @@ Generated: 2026-06-17T16:09:13Z
 - vol_reversion_pressure: 0.0433
 - option_liquidity_risk: 0.0572
 - energy_injection_proxy (E_i): 0.25
-- boundary_stress_proxy (B_s): 0.0126
+- boundary_stress_proxy (B_s): 0.0078
 - rupture_pressure_contributor: 0.016
 - lrp_contributor: 0.6901
 
