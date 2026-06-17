@@ -17,8 +17,12 @@ from laser_falcon_data_adapter import assess_data_health, normalize_option_chain
 from laser_falcon_regime_mapper import map_laser_falcon_regime_metrics
 from ou_iv_engine import ou_half_life, simulate_ou_iv_paths
 from stochastic_vol_engine import simulate_stochastic_vol_paths
+from anomaly_detection_engine import detect_anomalies
+from options_pressure_mapper import compute_options_pressure_metrics, map_to_pressure_vocabulary
+from regime_detection_engine import classify_vol_regime
 from tests.laser_falcon_fixtures import make_synthetic_option_chain, make_synthetic_stock_df
-from volatility_skew_engine import compute_skew_metrics
+from volatility_arbitrage_detector import detect_vol_arbitrage
+from volatility_skew_engine import compute_skew_metrics, filter_strikes_near_spot
 from volatility_surface_engine import assess_surface_density, build_iv_surface_grid
 
 
@@ -61,7 +65,75 @@ class TestSkewEngine(unittest.TestCase):
         metrics = compute_skew_metrics(normalized, spot=100.0)
         self.assertEqual(metrics["status"], "OK")
         self.assertIsNotNone(metrics["atm_iv"])
+        self.assertIsNotNone(metrics["put_wing_iv"])
+        self.assertIsNotNone(metrics["call_wing_iv"])
         self.assertIsInstance(metrics["put_fear_flag"], bool)
+        self.assertIsNotNone(metrics["skew_ratio"])
+
+    def test_put_wing_sparse_chain_fallback(self):
+        raw = make_synthetic_option_chain(spot=100.0, sparse=True)
+        normalized = normalize_option_chain(raw, spot=100.0, reference_date=datetime(2026, 6, 15))
+        metrics = compute_skew_metrics(normalized, spot=100.0)
+        self.assertEqual(metrics["status"], "OK")
+        self.assertIsNotNone(metrics["put_wing_iv"])
+
+
+class TestOptionsPressureMapper(unittest.TestCase):
+    def test_pressure_metrics_and_inward_map(self):
+        raw = make_synthetic_option_chain(spot=100.0)
+        normalized = normalize_option_chain(raw, spot=100.0, reference_date=datetime(2026, 6, 15))
+        stock = normalize_stock_df(make_synthetic_stock_df(spot=100.0))
+        skew = compute_skew_metrics(normalized, spot=100.0)
+        pm = compute_options_pressure_metrics(
+            option_df=normalized, stock_df=stock, spot=100.0, skew_metrics=skew
+        )
+        self.assertIn("gamma_compression_score", pm)
+        self.assertIn("dealer_hedging_stress_score", pm)
+        inward = map_to_pressure_vocabulary(pm, skew_metrics=skew)
+        self.assertIn("energy_injection_proxy", inward)
+        self.assertLessEqual(inward["lrp_contributor"], 1.0)
+
+
+class TestAnomalyAndRegime(unittest.TestCase):
+    def test_anomaly_detection_labels(self):
+        skew = {
+            "atm_iv": 80.0,
+            "put_wing_iv": 95.0,
+            "call_wing_iv": 85.0,
+            "skew_inversion_flag": False,
+            "call_fomo_flag": True,
+            "put_fear_flag": True,
+            "calls_overpriced_flag": True,
+            "puts_overpriced_flag": True,
+            "surface_curvature": 0.1,
+        }
+        pm = {
+            "volatility_expansion_score": 3.0,
+            "gamma_compression_score": 0.6,
+            "dealer_hedging_stress_score": 0.7,
+        }
+        anomaly = detect_anomalies(skew_metrics=skew, pressure_metrics=pm, benchmark_skew={"atm_iv": 20.0})
+        self.assertIn(anomaly["primary_label"], anomaly["labels"])
+        regime = classify_vol_regime(skew_metrics=skew, pressure_metrics=pm, anomaly=anomaly)
+        self.assertIn(regime["regime"], (
+            "LOW_VOL_REGIME", "HIGH_VOL_REGIME", "PANIC_REGIME",
+            "POST_EVENT_CRUSH", "MELT_UP", "MEAN_REVERSION_LIKELY", "NORMAL",
+        ))
+
+
+class TestVolArbitrage(unittest.TestCase):
+    def test_arbitrage_dislocation(self):
+        raw = make_synthetic_option_chain(spot=100.0)
+        norm = normalize_option_chain(raw, spot=100.0, reference_date=datetime(2026, 6, 15))
+        result = detect_vol_arbitrage(
+            norm, norm,
+            target_spot=100.0,
+            benchmark_spot=100.0,
+            target_ticker="AAA",
+            benchmark_ticker="BBB",
+        )
+        self.assertEqual(result["status"], "OK")
+        self.assertIn("dislocation_pct", result)
 
 
 class TestSurfaceEngine(unittest.TestCase):
@@ -119,18 +191,44 @@ class TestPrimaryEngine(unittest.TestCase):
             self.assertTrue(Path(result["summary_md"]).exists())
             payload = json.loads(Path(result["json_path"]).read_text(encoding="utf-8"))
             self.assertIn("regime_metrics", payload)
+            self.assertIn("pressure_metrics", payload)
+            self.assertIn("anomaly", payload)
+            self.assertIn("vol_regime", payload)
             self.assertIn("iv_pressure_score", payload["regime_metrics"])
 
 
 class TestRegimeMapper(unittest.TestCase):
     def test_regime_scores_clamped(self):
+        pm = {
+            "gamma_compression_score": 0.4,
+            "volatility_expansion_score": 2.1,
+            "dealer_hedging_stress_score": 0.3,
+            "atm_iv_pct": 30,
+        }
         metrics = map_laser_falcon_regime_metrics(
             skew_metrics={"atm_iv": 30, "put_wing_iv": 45, "call_wing_iv": 28, "skew_slope": -0.5},
             surface_report={"status": "OK", "density": {"n_points": 50}},
             ou_result={"iv0": 0.3, "terminal_mean": 0.22},
             data_health={"quote_unstable_pct": 10, "iv_coverage_pct": 90, "status": "OK"},
+            pressure_metrics=pm,
         )
+        clamped_keys = {
+            "iv_pressure_score",
+            "skew_instability_score",
+            "surface_dislocation_score",
+            "vol_reversion_pressure",
+            "option_liquidity_risk",
+            "gamma_compression_score",
+            "dealer_hedging_stress_score",
+            "energy_injection_proxy",
+            "boundary_stress_proxy",
+            "rupture_pressure_contributor",
+            "lrp_contributor",
+            "observer_blindspot_proxy",
+        }
         for key, val in metrics.items():
+            if key not in clamped_keys or val is None:
+                continue
             self.assertGreaterEqual(val, 0.0)
             self.assertLessEqual(val, 1.0)
 

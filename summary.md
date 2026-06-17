@@ -98,6 +98,11 @@ finance_crow_engine/
 │   ├── ou_iv_engine.py                    ← OU IV mean reversion paths
 │   ├── stochastic_vol_engine.py           ← Heston-like vol cones
 │   ├── laser_falcon_regime_mapper.py      ← map vol metrics to pressure vocabulary
+│   ├── options_pressure_mapper.py         ← gamma/vol-expansion/skew/dealer pressure scores
+│   ├── anomaly_detection_engine.py        ← IPO/sparse chain anomaly labels
+│   ├── regime_detection_engine.py         ← LOW/HIGH/PANIC vol regime classification
+│   ├── volatility_arbitrage_detector.py   ← cross-ticker IV dislocation detector
+│   ├── projection_range_engine.py         ← 7–180 day projection presets
 │   └── ★ streamlit_laser_falcon.py        ← interactive Laser Falcon UI
 │   ├── restoration_field_engine.py        ← F_r, D_c, restoration_ratio
 │   ├── capillary_wave_engine.py           ← A_f, wave_persistence, C_w

@@ -145,7 +145,7 @@ def plot_iv_surface(
         return output_path, surface
 
     grid = surface["grid"]
-    X, Y = np.meshgrid(grid["x"], grid["y"])
+    X, Y = np.meshgrid(grid["x"], grid["y"])  # numpy meshgrid (no torch dependency)
     Z = np.array(grid["z"])
     ax.plot_surface(X, Y, Z, cmap="viridis", alpha=0.9, edgecolor="none")
     ax.set_xlabel(grid["x_label"])

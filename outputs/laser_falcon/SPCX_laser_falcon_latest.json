@@ -1,7 +1,7 @@
 {
   "ticker": "SPCX",
   "benchmark": "SPY",
-  "timestamp": "2026-06-17T05:52:07Z",
+  "timestamp": "2026-06-17T15:57:03Z",
   "spot": 201.8,
   "chain_date": "06_16_2026",
   "data_health": {
@@ -18,42 +18,65 @@
     "ticker": "SPCX",
     "skew": {
       "expiration": "Thu Jun 18 2026",
+      "spot_range_pct": 0.15,
+      "n_strikes_in_band": 6,
       "atm_iv": 168.525,
-      "put_wing_iv": null,
+      "put_wing_iv": 166.99,
       "call_wing_iv": 175.97,
       "skew_slope": 0.312686,
-      "skew_inversion_flag": false,
+      "skew_ratio": 0.949,
+      "skew_asymmetry_pressure": -0.0533,
+      "skew_inversion_flag": true,
+      "calls_overpriced_flag": false,
+      "puts_overpriced_flag": false,
       "call_fomo_flag": false,
       "put_fear_flag": false,
+      "surface_curvature": 0.019171,
       "status": "OK"
     },
     "benchmark": {
       "target": {
         "expiration": "Thu Jun 18 2026",
+        "spot_range_pct": 0.15,
+        "n_strikes_in_band": 6,
         "atm_iv": 168.525,
-        "put_wing_iv": null,
+        "put_wing_iv": 166.99,
         "call_wing_iv": 175.97,
         "skew_slope": 0.312686,
-        "skew_inversion_flag": false,
+        "skew_ratio": 0.949,
+        "skew_asymmetry_pressure": -0.0533,
+        "skew_inversion_flag": true,
+        "calls_overpriced_flag": false,
+        "puts_overpriced_flag": false,
         "call_fomo_flag": false,
         "put_fear_flag": false,
+        "surface_curvature": 0.019171,
         "status": "OK"
       },
       "benchmark": {
         "expiration": "Fri Jun 26 2026",
+        "spot_range_pct": 0.15,
+        "n_strikes_in_band": 6,
         "atm_iv": 13.34,
-        "put_wing_iv": null,
-        "call_wing_iv": null,
+        "put_wing_iv": 13.34,
+        "call_wing_iv": 13.14,
         "skew_slope": -0.195143,
+        "skew_ratio": 1.0152,
+        "skew_asymmetry_pressure": 0.015,
         "skew_inversion_flag": false,
+        "calls_overpriced_flag": false,
+        "puts_overpriced_flag": false,
         "call_fomo_flag": false,
         "put_fear_flag": false,
+        "surface_curvature": 0.015,
         "status": "OK"
       },
       "atm_iv_delta": 155.185,
-      "put_wing_iv_delta": null,
-      "call_wing_iv_delta": null,
+      "put_wing_iv_delta": 153.65,
+      "call_wing_iv_delta": 162.83,
       "skew_slope_delta": 0.5078,
+      "volatility_ratio": 12.6331,
+      "skew_ratio_delta": -0.0662,
       "relative_put_fear": false,
       "relative_call_fomo": false
     }
@@ -590,13 +613,61 @@
     "terminal_price_p50": 181.36064189778835,
     "terminal_vol_p50": 1.6816206272140257
   },
+  "pressure_metrics": {
+    "gamma_compression_score": 0.0126,
+    "volatility_expansion_score": null,
+    "skew_asymmetry_pressure": -0.0533,
+    "dealer_hedging_stress_score": 0.0,
+    "realized_vol_30d_pct": null,
+    "atm_iv_pct": 168.525
+  },
+  "anomaly": {
+    "labels": [
+      "IPO_INSTABILITY",
+      "SKEW_INVERSION"
+    ],
+    "primary_label": "IPO_INSTABILITY",
+    "severity_score": 1.0,
+    "features": {
+      "volatility_ratio": 12.6331,
+      "call_skew_ratio": 1.0442,
+      "put_skew_ratio": 0.9909,
+      "surface_curvature": 0.019171,
+      "volatility_expansion_score": null,
+      "gamma_compression_score": 0.0126,
+      "dealer_hedging_stress_score": 0.0,
+      "data_status": "SPARSE"
+    }
+  },
+  "vol_regime": {
+    "regime": "HIGH_VOL_REGIME",
+    "confidence": 0.7,
+    "atm_iv_pct": 168.525,
+    "volatility_expansion_score": 1.0,
+    "mean_reversion_delta": 0.073
+  },
+  "vol_arbitrage": {
+    "status": "INSUFFICIENT",
+    "target_ticker": "SPCX",
+    "benchmark_ticker": "SPY",
+    "target_dte_requested": 45
+  },
   "regime_metrics": {
     "iv_pressure_score": 1.0,
-    "skew_instability_score": 0.0252,
+    "skew_instability_score": 0.2359,
     "surface_dislocation_score": 0.55,
     "vol_reversion_pressure": 0.0433,
-    "option_liquidity_risk": 0.0572
+    "option_liquidity_risk": 0.0572,
+    "gamma_compression_score": 0.0126,
+    "volatility_expansion_score": null,
+    "dealer_hedging_stress_score": 0.0,
+    "energy_injection_proxy": 0.25,
+    "boundary_stress_proxy": 0.0126,
+    "rupture_pressure_contributor": 0.016,
+    "lrp_contributor": 0.6901,
+    "observer_blindspot_proxy": 0.0
   },
+  "projection_days": 30,
   "artifacts": {
     "iv_skew": "outputs\\laser_falcon\\SPCX_iv_skew.png",
     "iv_surface": "outputs\\laser_falcon\\SPCX_iv_surface.png",

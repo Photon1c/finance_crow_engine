@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
 import streamlit as st
 
+from anomaly_detection_engine import detect_anomalies
 from laser_falcon_data_adapter import list_expirations, load_laser_falcon_snapshot
 from laser_falcon_primary_engine import build_skew_report, run_laser_falcon_analysis, run_ou_iv_projection, run_stochastic_vol_projection
+from options_pressure_mapper import compute_options_pressure_metrics
+from projection_range_engine import PROJECTION_PRESETS, clamp_projection_days
+from regime_detection_engine import classify_vol_regime
+from volatility_arbitrage_detector import detect_vol_arbitrage
 from volatility_skew_engine import compute_skew_metrics, plot_iv_skew
 from volatility_surface_engine import plot_iv_surface
 
@@ -24,7 +28,21 @@ with col2:
 with col3:
     expiration = "Auto"
 
-projection_days = st.slider("Projection days", min_value=5, max_value=90, value=30)
+st.subheader("Projection Window")
+preset_cols = st.columns(len(PROJECTION_PRESETS))
+preset_days = PROJECTION_PRESETS[2]
+for idx, days in enumerate(PROJECTION_PRESETS):
+    if preset_cols[idx].button(f"{days}d", use_container_width=True):
+        preset_days = days
+projection_days = st.slider(
+    "Projection days",
+    min_value=1,
+    max_value=180,
+    value=preset_days,
+    key="projection_slider",
+)
+projection_days = clamp_projection_days(projection_days)
+
 ou_theta = st.slider("OU theta (mean reversion speed)", min_value=0.5, max_value=12.0, value=4.0, step=0.5)
 ou_long_run_iv = st.slider("OU long-run IV", min_value=0.05, max_value=1.0, value=0.25, step=0.01)
 vol_of_vol = st.slider("Vol-of-vol (OU sigma)", min_value=0.01, max_value=0.50, value=0.15, step=0.01)
@@ -40,7 +58,9 @@ tabs = st.tabs(
         "IV Surface",
         "OU IV Mean Reversion",
         "Stochastic Volatility",
-        "Benchmark Comparison",
+        "Pressure Mapping",
+        "Anomaly & Regime",
+        "Benchmark / Arbitrage",
         "Exported Reports",
     ]
 )
@@ -61,10 +81,7 @@ except FileNotFoundError as exc:
 
 if snapshot is not None:
     expirations = ["Auto"] + list_expirations(snapshot.option_df)
-    if expiration == "Auto" and len(expirations) > 1:
-        chosen_exp = None
-    else:
-        chosen_exp = expiration if expiration != "Auto" else None
+    chosen_exp = None if expiration == "Auto" else expiration
 else:
     chosen_exp = None
 
@@ -81,6 +98,11 @@ with tabs[1]:
     if snapshot is not None and not snapshot.option_df.empty:
         metrics = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
         st.json(metrics)
+        st.write(
+            f"Calls overpriced: **{metrics.get('calls_overpriced_flag')}** | "
+            f"Puts overpriced: **{metrics.get('puts_overpriced_flag')}** | "
+            f"Skew inverted: **{metrics.get('skew_inversion_flag')}**"
+        )
         skew_path = plot_iv_skew(
             snapshot.option_df,
             ticker=ticker,
@@ -168,12 +190,57 @@ with tabs[4]:
         st.image(str(stoch_path))
 
 with tabs[5]:
-    st.subheader("Benchmark Comparison")
+    st.subheader("Options Pressure Mapping")
     if snapshot is not None:
-        report = build_skew_report(snapshot, expiration=chosen_exp, benchmark_snapshot=bench_snapshot)
-        st.json(report.get("benchmark", {"note": "Benchmark unavailable"}))
+        skew = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
+        pm = compute_options_pressure_metrics(
+            option_df=snapshot.option_df,
+            stock_df=snapshot.stock_df,
+            spot=snapshot.spot,
+            skew_metrics=skew,
+        )
+        st.json(pm)
 
 with tabs[6]:
+    st.subheader("Anomaly & Regime")
+    if snapshot is not None:
+        skew = compute_skew_metrics(snapshot.option_df, spot=snapshot.spot, expiration=chosen_exp)
+        pm = compute_options_pressure_metrics(
+            option_df=snapshot.option_df,
+            stock_df=snapshot.stock_df,
+            spot=snapshot.spot,
+            skew_metrics=skew,
+        )
+        bench_skew = None
+        if bench_snapshot is not None:
+            bench_skew = compute_skew_metrics(bench_snapshot.option_df, spot=bench_snapshot.spot)
+        anomaly = detect_anomalies(
+            skew_metrics=skew,
+            pressure_metrics=pm,
+            benchmark_skew=bench_skew,
+            data_health=snapshot.data_health,
+        )
+        regime = classify_vol_regime(skew_metrics=skew, pressure_metrics=pm, anomaly=anomaly)
+        st.json({"anomaly": anomaly, "regime": regime})
+
+with tabs[7]:
+    st.subheader("Benchmark / Vol Arbitrage")
+    if snapshot is not None and bench_snapshot is not None:
+        report = build_skew_report(snapshot, expiration=chosen_exp, benchmark_snapshot=bench_snapshot)
+        st.json(report.get("benchmark", {}))
+        arb = detect_vol_arbitrage(
+            snapshot.option_df,
+            bench_snapshot.option_df,
+            target_spot=snapshot.spot,
+            benchmark_spot=bench_snapshot.spot,
+            target_ticker=ticker,
+            benchmark_ticker=benchmark,
+        )
+        st.json(arb)
+    else:
+        st.info("Load both target and benchmark tickers for arbitrage detection.")
+
+with tabs[8]:
     st.subheader("Exported Reports")
     if run_full and snapshot is not None:
         with st.spinner("Running Laser Falcon pipeline..."):

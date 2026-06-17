@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 import numpy as np
 
+from anomaly_detection_engine import detect_anomalies
 from laser_falcon_data_adapter import (
     DEFAULT_OPTION_DIR,
     DEFAULT_STOCK_DIR,
@@ -21,8 +22,12 @@ from laser_falcon_data_adapter import (
     load_laser_falcon_snapshot,
 )
 from laser_falcon_regime_mapper import map_laser_falcon_regime_metrics
+from options_pressure_mapper import compute_options_pressure_metrics
 from ou_iv_engine import plot_ou_iv_projection, simulate_ou_iv_paths
+from projection_range_engine import DEFAULT_PROJECTION_DAYS, clamp_projection_days
+from regime_detection_engine import classify_vol_regime
 from stochastic_vol_engine import plot_stochastic_vol_projection, simulate_stochastic_vol_paths
+from volatility_arbitrage_detector import detect_vol_arbitrage
 from volatility_skew_engine import (
     compare_skew_to_benchmark,
     compute_skew_metrics,
@@ -32,7 +37,6 @@ from volatility_surface_engine import build_iv_surface_grid, plot_iv_surface
 
 DEFAULT_OUTPUT_DIR = Path("outputs/laser_falcon")
 DEFAULT_BENCHMARK = "SPY"
-DEFAULT_PROJECTION_DAYS = 30
 
 
 def _json_safe(obj: Any) -> Any:
@@ -129,7 +133,11 @@ def _write_summary_md(
     surface_report: dict[str, Any],
     ou_result: dict[str, Any],
     stoch_result: dict[str, Any],
-    regime_metrics: dict[str, float],
+    regime_metrics: dict[str, Any],
+    pressure_metrics: dict[str, Any],
+    anomaly: dict[str, Any],
+    vol_regime: dict[str, Any],
+    vol_arbitrage: dict[str, Any],
     artifact_paths: dict[str, str],
 ) -> None:
     skew = skew_report.get("skew", {})
@@ -156,8 +164,32 @@ def _write_summary_md(
             f"- Put wing IV: {skew.get('put_wing_iv', 'n/a')}",
             f"- Call wing IV: {skew.get('call_wing_iv', 'n/a')}",
             f"- Skew slope: {skew.get('skew_slope', 'n/a')}",
-            f"- Put fear flag: {skew.get('put_fear_flag', False)}",
-            f"- Call FOMO flag: {skew.get('call_fomo_flag', False)}",
+            f"- Skew ratio: {skew.get('skew_ratio', 'n/a')}",
+            f"- Skew asymmetry: {skew.get('skew_asymmetry_pressure', 'n/a')}",
+            f"- Calls overpriced: {skew.get('calls_overpriced_flag', False)}",
+            f"- Puts overpriced: {skew.get('puts_overpriced_flag', False)}",
+            f"- Skew inversion: {skew.get('skew_inversion_flag', False)}",
+            "",
+            "## Options Pressure Metrics",
+            f"- Gamma compression: {pressure_metrics.get('gamma_compression_score', 'n/a')}",
+            f"- Vol expansion (ATM/realized): {pressure_metrics.get('volatility_expansion_score', 'n/a')}",
+            f"- Skew asymmetry pressure: {pressure_metrics.get('skew_asymmetry_pressure', 'n/a')}",
+            f"- Dealer hedging stress: {pressure_metrics.get('dealer_hedging_stress_score', 'n/a')}",
+            f"- 30d realized vol: {pressure_metrics.get('realized_vol_30d_pct', 'n/a')}%",
+            "",
+            "## Anomaly Detection",
+            f"- Primary: **{anomaly.get('primary_label', 'n/a')}**",
+            f"- Labels: {', '.join(anomaly.get('labels', []))}",
+            f"- Severity: {anomaly.get('severity_score', 'n/a')}",
+            "",
+            "## Vol Regime",
+            f"- Regime: **{vol_regime.get('regime', 'n/a')}**",
+            f"- Confidence: {vol_regime.get('confidence', 'n/a')}",
+            "",
+            "## Vol Arbitrage / Dislocation",
+            f"- Status: {vol_arbitrage.get('status', 'n/a')}",
+            f"- Dislocation: {vol_arbitrage.get('dislocation_pct', 'n/a')}",
+            f"- Potential dislocation: {vol_arbitrage.get('potential_dislocation', False)}",
             "",
             "## IV Surface",
             f"- Status: {surface_report.get('status', 'n/a')}",
@@ -178,6 +210,10 @@ def _write_summary_md(
             f"- surface_dislocation_score: {regime_metrics.get('surface_dislocation_score')}",
             f"- vol_reversion_pressure: {regime_metrics.get('vol_reversion_pressure')}",
             f"- option_liquidity_risk: {regime_metrics.get('option_liquidity_risk')}",
+            f"- energy_injection_proxy (E_i): {regime_metrics.get('energy_injection_proxy', 'n/a')}",
+            f"- boundary_stress_proxy (B_s): {regime_metrics.get('boundary_stress_proxy', 'n/a')}",
+            f"- rupture_pressure_contributor: {regime_metrics.get('rupture_pressure_contributor', 'n/a')}",
+            f"- lrp_contributor: {regime_metrics.get('lrp_contributor', 'n/a')}",
             "",
             f"## Benchmark: {benchmark.upper()}",
         ]
@@ -212,6 +248,7 @@ def run_laser_falcon_analysis(
     output_dir.mkdir(parents=True, exist_ok=True)
     ticker = ticker.upper()
     benchmark = benchmark.upper()
+    projection_days = clamp_projection_days(projection_days)
 
     snapshot = load_laser_falcon_snapshot(ticker, stock_dir=stock_dir, option_dir=option_dir)
     bench_snapshot: Optional[LaserFalconSnapshot] = None
@@ -285,11 +322,42 @@ def run_laser_falcon_analysis(
         xi=stoch_xi,
     )
 
+    pressure_metrics = compute_options_pressure_metrics(
+        option_df=snapshot.option_df,
+        stock_df=snapshot.stock_df,
+        spot=snapshot.spot,
+        skew_metrics=skew_report["skew"],
+    )
+    bench_skew = bench_metrics if bench_metrics else None
+    anomaly = detect_anomalies(
+        skew_metrics=skew_report["skew"],
+        pressure_metrics=pressure_metrics,
+        benchmark_skew=bench_skew,
+        data_health=snapshot.data_health,
+    )
+    vol_regime = classify_vol_regime(
+        skew_metrics=skew_report["skew"],
+        pressure_metrics=pressure_metrics,
+        ou_result=ou_export,
+        anomaly=anomaly,
+    )
+    vol_arbitrage: dict[str, Any] = {"status": "SKIPPED"}
+    if bench_snapshot is not None:
+        vol_arbitrage = detect_vol_arbitrage(
+            snapshot.option_df,
+            bench_snapshot.option_df,
+            target_spot=snapshot.spot,
+            benchmark_spot=bench_snapshot.spot,
+            target_ticker=ticker,
+            benchmark_ticker=benchmark,
+        )
+
     regime_metrics = map_laser_falcon_regime_metrics(
         skew_metrics=skew_report["skew"],
         surface_report=surface_report,
         ou_result=ou_export,
         data_health=snapshot.data_health,
+        pressure_metrics=pressure_metrics,
     )
 
     artifact_paths = {
@@ -310,6 +378,10 @@ def run_laser_falcon_analysis(
         ou_result=ou_export,
         stoch_result=stoch_export,
         regime_metrics=regime_metrics,
+        pressure_metrics=pressure_metrics,
+        anomaly=anomaly,
+        vol_regime=vol_regime,
+        vol_arbitrage=vol_arbitrage,
         artifact_paths=artifact_paths,
     )
 
@@ -324,7 +396,12 @@ def run_laser_falcon_analysis(
         "surface": {k: v for k, v in surface_report.items() if k != "grid"},
         "ou_iv": ou_export,
         "stochastic_vol": stoch_export,
+        "pressure_metrics": pressure_metrics,
+        "anomaly": anomaly,
+        "vol_regime": vol_regime,
+        "vol_arbitrage": vol_arbitrage,
         "regime_metrics": regime_metrics,
+        "projection_days": projection_days,
         "artifacts": artifact_paths,
         "summary_md": str(summary_path),
     }

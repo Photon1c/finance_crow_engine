@@ -184,3 +184,31 @@ notes:
       note: OU mean-reversion workload after shock
     option_liquidity_risk:
       note: quote spread / IV coverage liquidity risk
+    gamma_compression_score:
+      note: maps inward to B_s (boundary_stress_frequency proxy)
+    volatility_expansion_score:
+      note: ATM IV / realized vol; maps inward to E_i proxy
+    skew_asymmetry_pressure:
+      note: (put_wing - call_wing) / ATM; LRP contributor
+    dealer_hedging_stress_score:
+      note: sum(gamma * OI); rupture_pressure contributor
+    energy_injection_proxy:
+      derived_metric: energy_injection_rate
+      note: local E_i bridge from vol expansion
+    boundary_stress_proxy:
+      primitive: compression
+      note: local B_s bridge from gamma compression
+    rupture_pressure_contributor:
+      note: dealer + skew stress contributor
+    lrp_contributor:
+      derived_metric: latent_rupture_potential
+      key: LRP
+      note: options-flow LRP contributor
+    observer_blindspot_proxy:
+      derived_metric: observer_resolution
+      key: R_o
+      note: vol surface distortion observer gap
+  anomaly_detection:
+    labels: NORMAL | POST_EVENT_EXPANSION | IPO_INSTABILITY | GAMMA_COMPRESSION_EVENT | CALL_FOMO_DETECTED | DEALER_STRESS_EVENT
+  vol_regime:
+    labels: LOW_VOL_REGIME | HIGH_VOL_REGIME | PANIC_REGIME | POST_EVENT_CRUSH | MELT_UP | MEAN_REVERSION_LIKELY

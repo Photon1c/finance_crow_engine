@@ -1,5 +1,6 @@
 """Map Laser Falcon vol metrics into pressure-field vocabulary (finance-local only).
 
+Delegates to options_pressure_mapper for named quant scores.
 Does NOT edit sacred ontology — map inward via config/pressure_ontology.yaml.
 """
 
@@ -8,6 +9,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
+
+from options_pressure_mapper import map_to_pressure_vocabulary
 
 
 def _clip01(value: Optional[float]) -> float:
@@ -22,9 +25,11 @@ def map_laser_falcon_regime_metrics(
     surface_report: dict[str, Any],
     ou_result: dict[str, Any],
     data_health: dict[str, Any],
+    pressure_metrics: Optional[dict[str, Any]] = None,
 ) -> dict[str, float]:
     """Produce local pressure-vocabulary scores from Laser Falcon outputs."""
-    atm_iv = skew_metrics.get("atm_iv") or 0.0
+    pm = pressure_metrics or {}
+    atm_iv = skew_metrics.get("atm_iv") or pm.get("atm_iv_pct") or 0.0
     put_wing = skew_metrics.get("put_wing_iv") or atm_iv
     call_wing = skew_metrics.get("call_wing_iv") or atm_iv
     skew_slope = abs(skew_metrics.get("skew_slope") or 0.0)
@@ -35,13 +40,16 @@ def map_laser_falcon_regime_metrics(
         wing_spread / max(atm_iv, 1.0) * 0.5
         + (0.2 if skew_metrics.get("skew_inversion_flag") else 0.0)
         + min(skew_slope * 0.01, 0.3)
+        + abs(skew_metrics.get("skew_asymmetry_pressure") or 0.0) * 0.2
     )
 
     surface_status = surface_report.get("status", "SKIPPED")
     density = surface_report.get("density", {})
     surface_dislocation_score = 0.0
     if surface_status == "OK":
-        surface_dislocation_score = _clip01(min(density.get("n_points", 0) / 100.0, 0.4) + wing_spread / max(atm_iv, 1.0) * 0.3)
+        surface_dislocation_score = _clip01(
+            min(density.get("n_points", 0) / 100.0, 0.4) + wing_spread / max(atm_iv, 1.0) * 0.3
+        )
     elif data_health.get("status") == "SPARSE":
         surface_dislocation_score = 0.55
 
@@ -53,10 +61,23 @@ def map_laser_falcon_regime_metrics(
     iv_coverage = data_health.get("iv_coverage_pct", 100.0) / 100.0
     option_liquidity_risk = _clip01(quote_unstable_pct * 0.6 + (1.0 - iv_coverage) * 0.4)
 
-    return {
+    result = {
         "iv_pressure_score": round(iv_pressure_score, 4),
         "skew_instability_score": round(skew_instability_score, 4),
         "surface_dislocation_score": round(surface_dislocation_score, 4),
         "vol_reversion_pressure": round(vol_reversion_pressure, 4),
         "option_liquidity_risk": round(option_liquidity_risk, 4),
+        "gamma_compression_score": round(pm.get("gamma_compression_score") or 0.0, 4),
+        "volatility_expansion_score": pm.get("volatility_expansion_score"),
+        "dealer_hedging_stress_score": round(pm.get("dealer_hedging_stress_score") or 0.0, 4),
     }
+
+    if pm:
+        inward = map_to_pressure_vocabulary(pm, skew_metrics=skew_metrics)
+        result["energy_injection_proxy"] = inward["energy_injection_proxy"]
+        result["boundary_stress_proxy"] = inward["boundary_stress_proxy"]
+        result["rupture_pressure_contributor"] = inward["rupture_pressure_contributor"]
+        result["lrp_contributor"] = inward["lrp_contributor"]
+        result["observer_blindspot_proxy"] = inward["observer_blindspot_proxy"]
+
+    return result
