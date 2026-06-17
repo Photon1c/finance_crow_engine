@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -31,6 +32,15 @@ from data_loader import (
     load_option_chain_data,
     parse_price,
 )
+from pressure_field_derivatives import (
+    DERIVATIVE_COLUMNS,
+    LRP_CONTRIB_COLUMNS,
+    build_lrp_debug_payload,
+    compute_rate_of_change_alerts,
+    enrich_pressure_derivatives,
+    write_lrp_debug_json,
+)
+from pressure_field_schema import build_stable_snapshot, write_stable_snapshot_json
 
 DEFAULT_TICKER = "SPY"
 DEFAULT_LOOKBACK_DAYS = 120
@@ -41,6 +51,34 @@ DEFAULT_RSI_PERIOD = 14
 DEFAULT_VWAP_WINDOW = 20
 DEFAULT_OUTPUT_HTML = "outputs/pressure_field_dashboard_{ticker}.html"
 DEFAULT_OUTPUT_JSON = "outputs/pressure_field_latest_{ticker}.json"
+DEFAULT_OUTPUT_CSV = "outputs/pressure_field_{ticker}.csv"
+DEFAULT_OUTPUT_MD = "outputs/pressure_field_{ticker}.md"
+DEFAULT_LRP_DEBUG_JSON = "outputs/lrp_debug_{ticker}.json"
+
+PRESSURE_FIELD_EXPORT_COLUMNS = [
+    "Date",
+    "Close",
+    "macd_regime",
+    "rsi_saturation",
+    "cvd_regime",
+    "volume_injection",
+    "vwap_distance_pct",
+    "gamma_flip_distance_pct",
+    "regime_label",
+    "rupture_pressure_score",
+    "T_a",
+    "T_a_norm",
+    "T_a_regime",
+    "R_o",
+    "T_v",
+    "observer_profile",
+    "LRP",
+    "LRP_raw",
+    "LRP_regime",
+    "LRP_confidence",
+    *LRP_CONTRIB_COLUMNS,
+    *DERIVATIVE_COLUMNS,
+]
 
 OBSERVER_QUOTE = (
     "Complex systems do not fail equally for all observers. Rupture becomes visible "
@@ -52,6 +90,20 @@ OBSERVER_QUOTE = (
 
 def _clip01(value: float) -> float:
     return float(max(0.0, min(1.0, value)))
+
+
+def _sanitize_series(series: pd.Series) -> pd.Series:
+    return series.replace([np.inf, -np.inf], np.nan)
+
+
+def _finite_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+    if value is None or pd.isna(value):
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return number if np.isfinite(number) else default
 
 
 def _ema(series: pd.Series, span: int) -> pd.Series:
@@ -89,7 +141,9 @@ def compute_macd(
     result["macd_histogram"] = result["macd_line"] - result["macd_signal"]
     hist_std = result["macd_histogram"].rolling(20, min_periods=5).std()
     result["macd_accel"] = result["macd_histogram"].diff()
-    result["macd_pressure_accel"] = result["macd_accel"] / hist_std.where(hist_std > 0)
+    result["macd_pressure_accel"] = _sanitize_series(
+        result["macd_accel"] / hist_std.where(hist_std > 1e-12)
+    )
     result["macd_regime"] = result["macd_histogram"].apply(_macd_regime_label)
     return result
 
@@ -143,7 +197,9 @@ def compute_cvd(df: pd.DataFrame) -> pd.DataFrame:
     result["cvd"] = result["signed_volume"].cumsum()
     result["cvd_slope"] = result["cvd"].diff(5)
     vol_scale = result["Volume"].rolling(20, min_periods=5).mean() * 5.0
-    result["cvd_imbalance"] = result["cvd_slope"] / vol_scale.where(vol_scale > 0)
+    result["cvd_imbalance"] = _sanitize_series(
+        result["cvd_slope"] / vol_scale.where(vol_scale > 1e-12)
+    )
     result["cvd_regime"] = result["cvd_imbalance"].apply(_cvd_regime_label)
     return result
 
@@ -163,8 +219,10 @@ def _cvd_regime_label(imbalance: float) -> str:
 def compute_volume_field(df: pd.DataFrame, *, window: int = 20) -> pd.DataFrame:
     """Volume as external energy injection field."""
     result = df.copy()
-    avg_vol = result["Volume"].rolling(window, min_periods=window).mean()
-    result["volume_injection"] = result["Volume"] / avg_vol.where(avg_vol > 0)
+    avg_vol = result["Volume"].rolling(window, min_periods=max(1, window // 2)).mean()
+    result["volume_injection"] = _sanitize_series(
+        result["Volume"] / avg_vol.where(avg_vol > 1e-12)
+    )
     result["volume_percentile"] = result["Volume"].rolling(60, min_periods=20).apply(
         lambda values: float((values[:-1] <= values[-1]).mean()) if len(values) > 1 else 0.5,
         raw=True,
@@ -190,10 +248,13 @@ def compute_vwap_field(df: pd.DataFrame, *, window: int = DEFAULT_VWAP_WINDOW) -
     result = df.copy()
     typical = (result["High"] + result["Low"] + result["Close"]) / 3.0
     pv = typical * result["Volume"]
-    cum_pv = pv.rolling(window, min_periods=window).sum()
-    cum_vol = result["Volume"].rolling(window, min_periods=window).sum()
-    result["vwap"] = cum_pv / cum_vol.where(cum_vol > 0)
-    result["vwap_distance_pct"] = (result["Close"] - result["vwap"]) / result["vwap"] * 100.0
+    cum_pv = pv.rolling(window, min_periods=max(1, window // 2)).sum()
+    cum_vol = result["Volume"].rolling(window, min_periods=max(1, window // 2)).sum()
+    result["vwap"] = _sanitize_series(cum_pv / cum_vol.where(cum_vol > 1e-12))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result["vwap_distance_pct"] = _sanitize_series(
+            (result["Close"] - result["vwap"]) / result["vwap"] * 100.0
+        )
     result["vwap_pull"] = result["vwap_distance_pct"].abs()
     result["vwap_regime"] = result["vwap_distance_pct"].apply(_vwap_regime_label)
     return result
@@ -211,23 +272,38 @@ def _vwap_regime_label(distance_pct: float) -> str:
     return "MEAN_REVERT_PULL"
 
 
+def empty_gamma_snapshot() -> dict[str, Any]:
+    """Safe null gamma snapshot when option chain is unavailable."""
+    return {
+        "gamma_flip_strike": None,
+        "distance_to_flip_pct": None,
+        "net_gamma_at_spot": None,
+        "gamma_regime": "NO_CHAIN",
+        "call_gamma_oi": 0.0,
+        "put_gamma_oi": 0.0,
+    }
+
+
 def compute_gamma_flip(
-    option_df: pd.DataFrame,
+    option_df: Optional[pd.DataFrame],
     spot: float,
 ) -> dict[str, Any]:
     """Gamma flip level from option chain — phase boundary transition."""
+    if option_df is None or len(option_df) == 0:
+        return empty_gamma_snapshot()
+    if spot <= 0 or not np.isfinite(spot):
+        snapshot = empty_gamma_snapshot()
+        snapshot["gamma_regime"] = "INVALID_SPOT"
+        return snapshot
+
     df = option_df.copy()
+    if "Strike" not in df.columns:
+        return empty_gamma_snapshot()
+
     df["Strike"] = pd.to_numeric(df["Strike"], errors="coerce")
     df = df[df["Strike"].notna()].copy()
     if df.empty:
-        return {
-            "gamma_flip_strike": float("nan"),
-            "distance_to_flip_pct": float("nan"),
-            "net_gamma_at_spot": float("nan"),
-            "gamma_regime": "NO_CHAIN",
-            "call_gamma_oi": 0.0,
-            "put_gamma_oi": 0.0,
-        }
+        return empty_gamma_snapshot()
 
     for col in ("Gamma", "Gamma.1", "Open Interest", "Open Interest.1"):
         if col in df.columns:
@@ -243,35 +319,50 @@ def compute_gamma_flip(
             call_gamma_oi=("call_gamma_oi", "sum"),
             put_gamma_oi=("put_gamma_oi", "sum"),
         )
+        .sort_values("Strike")
+        .reset_index(drop=True)
     )
+    if grouped.empty:
+        return empty_gamma_snapshot()
+
+    total_oi = float(grouped["call_gamma_oi"].sum() + grouped["put_gamma_oi"].sum())
+    if total_oi <= 0:
+        snapshot = empty_gamma_snapshot()
+        snapshot["gamma_regime"] = "ZERO_OI"
+        return snapshot
+
     grouped["net_gamma"] = grouped["call_gamma_oi"] - grouped["put_gamma_oi"]
 
-    flip_strike = float("nan")
+    flip_strike: Optional[float] = None
     strikes = grouped["Strike"].values
     net = grouped["net_gamma"].values
     for idx in range(1, len(strikes)):
-        if net[idx - 1] == 0:
+        prev_net = float(net[idx - 1])
+        curr_net = float(net[idx])
+        if prev_net == 0.0:
             flip_strike = float(strikes[idx - 1])
             break
-        if net[idx - 1] * net[idx] < 0:
-            weight = abs(net[idx - 1]) / (abs(net[idx - 1]) + abs(net[idx]) + 1e-9)
+        if prev_net * curr_net < 0:
+            weight = abs(prev_net) / (abs(prev_net) + abs(curr_net) + 1e-9)
             flip_strike = float(strikes[idx - 1] * (1 - weight) + strikes[idx] * weight)
             break
 
     spot_idx = (grouped["Strike"] - spot).abs().idxmin()
     net_at_spot = float(grouped.loc[spot_idx, "net_gamma"])
-    distance_pct = float("nan")
-    if not np.isnan(flip_strike) and spot > 0:
+    distance_pct: Optional[float] = None
+    if flip_strike is not None:
         distance_pct = (spot - flip_strike) / spot * 100.0
 
-    if np.isnan(flip_strike):
+    if flip_strike is None:
         regime = "FLIP_UNDEFINED"
-    elif abs(distance_pct) < 0.5:
+    elif distance_pct is not None and abs(distance_pct) < 0.5:
         regime = "AT_PHASE_BOUNDARY"
-    elif distance_pct > 0:
+    elif distance_pct is not None and distance_pct > 0:
         regime = "ABOVE_FLIP_POSITIVE_GAMMA"
-    else:
+    elif distance_pct is not None:
         regime = "BELOW_FLIP_NEGATIVE_GAMMA"
+    else:
+        regime = "FLIP_UNDEFINED"
 
     return {
         "gamma_flip_strike": flip_strike,
@@ -326,7 +417,7 @@ def _status_class(regime: str) -> str:
     warning = {"THRUST_LOSS", "DECEL_DOWN", "IMBALANCE_BUILDING", "AT_PHASE_BOUNDARY",
                "RUPTURE_CANDIDATE", "CONTAINMENT_STRESS", "LOW-CONFIDENCE CRUISE MODE"}
     danger = {"DISSIPATION_CASCADE", "SELL_FORCE_DOMINANT", "BELOW_FLIP_NEGATIVE_GAMMA",
-              "WAIT / PACKET BUFFERING"}
+              "WAIT / PACKET BUFFERING", "RUPTURE_IMMINENT", "PRE_RUPTURE"}
     if regime in danger:
         return "status-danger"
     if regime in warning:
@@ -336,6 +427,37 @@ def _status_class(regime: str) -> str:
     return "status-neutral"
 
 
+def _lrp_status_class(regime: str) -> str:
+    if regime in {"RUPTURE_IMMINENT", "PRE_RUPTURE"}:
+        return "status-danger" if regime == "RUPTURE_IMMINENT" else "status-warn"
+    if regime == "PRESSURE_BUILDING":
+        return "status-warn"
+    return "status-good"
+
+
+def _format_lrp_contributions(latest: pd.Series) -> str:
+    labels = (
+        ("lrp_contrib_T_a", "T_a"),
+        ("lrp_contrib_observer", "Observer decay"),
+        ("lrp_contrib_gamma", "Gamma boundary"),
+        ("lrp_contrib_vwap", "VWAP dislocation"),
+        ("lrp_contrib_cvd", "CVD imbalance"),
+        ("lrp_contrib_macd", "MACD acceleration"),
+    )
+    parts = []
+    for key, label in labels:
+        value = latest.get(key)
+        if value is not None and pd.notna(value):
+            parts.append(f"{label}: {float(value):.2f}")
+    confidence = latest.get("LRP_confidence", "")
+    raw = latest.get("LRP_raw")
+    raw_text = f" · raw {float(raw):.3f}" if raw is not None and pd.notna(raw) else ""
+    conf_text = f" · {confidence}" if confidence else ""
+    if parts:
+        return " · ".join(parts) + raw_text + conf_text
+    return f"LRP confidence: {confidence or 'n/a'}{raw_text}"
+
+
 def render_html_dashboard(
     df: pd.DataFrame,
     *,
@@ -343,6 +465,7 @@ def render_html_dashboard(
     spot: float,
     chain_date: str,
     gamma: dict[str, Any],
+    alerts: list[str],
     output_path: Path,
     chart_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> None:
@@ -360,6 +483,7 @@ def render_html_dashboard(
         "vwap": _series_tail(df["vwap"], chart_days),
         "rupture": _series_tail(df["rupture_pressure_score"], chart_days),
         "T_a_norm": _series_tail(df["T_a_norm"], chart_days),
+        "LRP": _series_tail(df["LRP"], chart_days),
     }
 
     latest_date = latest["Date"]
@@ -420,16 +544,31 @@ def render_html_dashboard(
             "id": "gamma",
             "title": "Gamma Flip",
             "role": "Phase Boundary Transition",
-            "value": f"${gamma['gamma_flip_strike']:.2f}" if not np.isnan(gamma["gamma_flip_strike"]) else "N/A",
+            "value": (
+                f"${gamma['gamma_flip_strike']:.2f}"
+                if gamma.get("gamma_flip_strike") is not None
+                else "N/A"
+            ),
             "sub": gamma["gamma_regime"],
             "detail": (
                 f"Spot dist {gamma['distance_to_flip_pct']:+.2f}% · "
-                f"net Γ {gamma['net_gamma_at_spot']:.0f}"
-                if not np.isnan(gamma.get("distance_to_flip_pct", float("nan")))
-                else "Flip level undefined"
+                f"net gamma {gamma['net_gamma_at_spot']:.0f}"
+                if gamma.get("distance_to_flip_pct") is not None
+                and gamma.get("net_gamma_at_spot") is not None
+                else gamma["gamma_regime"]
             ),
             "color": "#ffd700",
             "status_class": _status_class(str(gamma.get("gamma_regime", ""))),
+        },
+        {
+            "id": "lrp",
+            "title": "Latent Rupture Potential",
+            "role": "Composite Pre-Rupture Score",
+            "value": f"{latest.get('LRP', float('nan')):.3f}",
+            "sub": f"{latest.get('LRP_regime', '')} · {latest.get('LRP_confidence', '')}",
+            "detail": _format_lrp_contributions(latest),
+            "color": "#ff4d6d",
+            "status_class": _lrp_status_class(str(latest.get("LRP_regime", ""))),
         },
     ]
 
@@ -440,7 +579,18 @@ def render_html_dashboard(
         ("R_o", "Observational Resolution", f"{latest.get('R_o', float('nan')):.3f}", str(latest.get("observer_profile", ""))),
         ("T_v", "Visibility Horizon", f"{latest.get('T_v', float('nan'))} sessions", "T_v = f(R_o)"),
         ("rupture", "Rupture Pressure", f"{latest['rupture_pressure_score']:.4f}", str(latest.get("regime_label", ""))),
+        ("LRP", "Latent Rupture Potential", f"{latest.get('LRP', float('nan')):.3f}", str(latest.get("LRP_regime", ""))),
     ]
+
+    alerts_html = ""
+    if alerts:
+        chips = "".join(f'<span class="alert-chip">{alert}</span>' for alert in alerts)
+        alerts_html = f"""
+        <section class="chart-panel">
+          <h2>Rate-of-Change Alerts</h2>
+          <div class="alert-row">{chips}</div>
+        </section>
+        """
 
     metric_cards_html = "\n".join(
         f"""
@@ -482,6 +632,30 @@ def render_html_dashboard(
           </div>
           <p class="stance-action">{latest['recommended_action']}</p>
         </section>
+        """
+
+    lrp_contrib_rows = [
+        ("T_a contribution", "lrp_contrib_T_a"),
+        ("Observer decay", "lrp_contrib_observer"),
+        ("Gamma boundary pressure", "lrp_contrib_gamma"),
+        ("VWAP dislocation", "lrp_contrib_vwap"),
+        ("CVD imbalance", "lrp_contrib_cvd"),
+        ("MACD acceleration", "lrp_contrib_macd"),
+    ]
+    contrib_lines = []
+    for label, key in lrp_contrib_rows:
+        value = latest.get(key)
+        if value is not None and pd.notna(value):
+            contrib_lines.append(
+                f"<tr><td>{label}</td><td>{float(value):.3f}</td></tr>"
+            )
+    lrp_contrib_html = ""
+    if contrib_lines:
+        lrp_contrib_html = f"""
+        <table class="contrib-table">
+          <thead><tr><th>Component</th><th>Contribution</th></tr></thead>
+          <tbody>{''.join(contrib_lines)}</tbody>
+        </table>
         """
 
     html = f"""<!DOCTYPE html>
@@ -601,6 +775,24 @@ def render_html_dashboard(
       padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); text-align: left;
     }}
     .observer-table th {{ color: var(--muted); font-weight: 500; }}
+    .alert-row {{ display: flex; flex-wrap: wrap; gap: 0.6rem; }}
+    .alert-chip {{
+      background: rgba(255, 77, 109, 0.12);
+      border: 1px solid rgba(255, 77, 109, 0.35);
+      color: #ffb4c2;
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }}
+    .contrib-table {{
+      width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.86rem;
+    }}
+    .contrib-table th, .contrib-table td {{
+      padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); text-align: left;
+    }}
+    .lrp-meta {{ color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }}
     footer {{ margin-top: 2rem; color: var(--muted); font-size: 0.78rem; text-align: center; }}
   </style>
 </head>
@@ -631,6 +823,16 @@ def render_html_dashboard(
     {metric_cards_html}
   </section>
 
+  {alerts_html}
+
+  <section class="chart-panel">
+    <h2>Latent Rupture Potential (LRP)</h2>
+    <p class="lrp-meta">Raw {latest.get('LRP_raw', float('nan')):.3f} · Confidence {latest.get('LRP_confidence', 'n/a')}</p>
+    <canvas id="chart-lrp" height="90"></canvas>
+    <h3 style="margin-top:1rem;font-size:0.95rem;color:#b8cff5;">LRP Component Contributions</h3>
+    {lrp_contrib_html}
+  </section>
+
   <section class="chart-panel">
     <h2>Pressure &amp; Acceleration Timeline</h2>
     <canvas id="chart-composite" height="120"></canvas>
@@ -641,9 +843,9 @@ def render_html_dashboard(
     <table class="observer-table">
       <thead><tr><th>Observer</th><th>R_o</th><th>Perceives</th><th>T_v (sessions)</th></tr></thead>
       <tbody>
-        <tr><td>Passenger</td><td>0.25</td><td>Final rupture only</td><td>{round(10 * (1 - 0.25) ** 1.4, 1)}</td></tr>
-        <tr><td>Pilot</td><td>0.55</td><td>Regime transitions, saturation extremes</td><td>{round(10 * (1 - 0.55) ** 1.4, 1)}</td></tr>
-        <tr><td>Mechanic</td><td>0.85</td><td>Latent T_a shifts, B_s buildup, hidden uncertainty</td><td>{round(10 * (1 - 0.85) ** 1.4, 1)}</td></tr>
+        <tr><td>Passenger</td><td>0.25</td><td>Final rupture only</td><td>{round(min(10.0, max(0.0, 10 * (1 - 0.25) ** 1.4)), 1)}</td></tr>
+        <tr><td>Pilot</td><td>0.55</td><td>Regime transitions, saturation extremes</td><td>{round(min(10.0, max(0.0, 10 * (1 - 0.55) ** 1.4)), 1)}</td></tr>
+        <tr><td>Mechanic</td><td>0.85</td><td>Latent T_a shifts, B_s buildup, hidden uncertainty</td><td>{round(min(10.0, max(0.0, 10 * (1 - 0.85) ** 1.4)), 1)}</td></tr>
         <tr style="color:#00d4ff"><td><strong>Current ({latest.get('observer_profile', 'n/a')})</strong></td>
             <td><strong>{latest.get('R_o', float('nan')):.3f}</strong></td>
             <td>Computed from live latent signals</td>
@@ -686,6 +888,7 @@ def render_html_dashboard(
     sparkline('chart-cvd', DATA.cvd, '#ffb347', 'CVD');
     sparkline('chart-volume', DATA.volume, '#39ff14', 'Volume');
     sparkline('chart-vwap', DATA.vwap, '#9d4edd', 'VWAP');
+    sparkline('chart-lrp', DATA.LRP, '#ff4d6d', 'LRP');
 
     const composite = document.getElementById('chart-composite');
     if (composite) {{
@@ -720,6 +923,98 @@ def render_html_dashboard(
     output_path.write_text(html, encoding="utf-8")
 
 
+def write_pressure_field_csv(df: pd.DataFrame, csv_path: Path) -> None:
+    """Write pressure field time series including LRP and derivative columns."""
+    export_cols = [col for col in PRESSURE_FIELD_EXPORT_COLUMNS if col in df.columns]
+    csv_path = Path(csv_path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df[export_cols].to_csv(csv_path, index=False)
+
+
+def write_pressure_field_report(
+    df: pd.DataFrame,
+    report_path: Path,
+    *,
+    ticker: str,
+    chain_date: str,
+    gamma: dict[str, Any],
+    alerts: list[str],
+) -> None:
+    """Write markdown summary including LRP and derivative snapshot."""
+    latest = df.iloc[-1]
+    previous = df.iloc[-2] if len(df) > 1 else None
+    latest_date = latest["Date"]
+    latest_date_str = latest_date.strftime("%Y-%m-%d") if hasattr(latest_date, "strftime") else str(latest_date)
+
+    lines = [
+        f"# Pressure Field Report — {ticker.upper()}",
+        "",
+        f"- **As of:** {latest_date_str}",
+        f"- **Chain date:** {chain_date}",
+        f"- **Close:** {latest['Close']:.2f}",
+        "",
+        "## Latent Rupture Potential",
+        "",
+        f"- **LRP:** {_finite_float(latest.get('LRP'), default=float('nan')):.4f}"
+        if pd.notna(latest.get("LRP"))
+        else "- **LRP:** —",
+        f"- **LRP_regime:** {latest.get('LRP_regime', '')}",
+        "",
+        "## Rate-of-Change Snapshot",
+        "",
+        f"- **d_canopy_pressure:** {latest.get('d_canopy_pressure', 0.0):+.6f}",
+        f"- **dd_canopy_pressure:** {latest.get('dd_canopy_pressure', 0.0):+.6f}",
+        f"- **d_R_o:** {latest.get('d_R_o', 0.0):+.6f}",
+        f"- **d_T_v:** {latest.get('d_T_v', 0.0):+.6f}",
+        f"- **d_gamma_flip_distance:** {latest.get('d_gamma_flip_distance', 0.0):+.6f}",
+        f"- **d_vwap_distance:** {latest.get('d_vwap_distance', 0.0):+.6f}",
+        "",
+        "## Derived Derivatives",
+        "",
+        "| Metric | Latest |",
+        "| :--- | ---: |",
+    ]
+    for col in DERIVATIVE_COLUMNS:
+        if col in latest.index:
+            value = latest[col]
+            lines.append(f"| {col} | {value:+.6f} |" if pd.notna(value) else f"| {col} | — |")
+
+    lines.extend([
+        "",
+        "## Rate-of-Change Alerts",
+        "",
+    ])
+    if alerts:
+        for alert in alerts:
+            lines.append(f"- {alert}")
+    else:
+        lines.append("- None active")
+
+    lines.extend([
+        "",
+        "## Gamma Flip",
+        "",
+        f"- **Flip strike:** {gamma.get('gamma_flip_strike')}",
+        f"- **Distance %:** {gamma.get('distance_to_flip_pct')}",
+        f"- **Regime:** {gamma.get('gamma_regime')}",
+        "",
+        "## Observer Differential",
+        "",
+        f"- **T_a_regime:** {latest.get('T_a_regime', '')}",
+        f"- **R_o:** {latest.get('R_o', float('nan')):.4f}",
+        f"- **T_v:** {latest.get('T_v', float('nan'))}",
+        f"- **observer_profile:** {latest.get('observer_profile', '')}",
+        "",
+    ])
+    if previous is not None:
+        lines.append(f"_Previous session close: {previous['Close']:.2f}_")
+        lines.append("")
+
+    report_path = Path(report_path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def write_latest_json(
     latest: pd.Series,
     gamma: dict[str, Any],
@@ -728,55 +1023,62 @@ def write_latest_json(
     ticker: str,
     spot: float,
     chain_date: str,
+    alerts: list[str],
 ) -> None:
-    """Write compact JSON snapshot for downstream ingestion."""
-    date_val = latest["Date"]
-    as_of = date_val.strftime("%Y-%m-%d") if hasattr(date_val, "strftime") else str(date_val)
-    payload = {
-        "ticker": ticker.upper(),
-        "as_of_date": as_of,
-        "spot": spot,
+    """Write compact JSON snapshot with stable schema keys."""
+    snapshot = build_stable_snapshot(
+        ticker=ticker,
+        latest=latest,
+        spot=spot,
+        gamma=gamma,
+    )
+    extras = {
         "chain_date": chain_date,
-        "observer_differential": {
-            "quote": OBSERVER_QUOTE,
-            "T_a": float(latest.get("T_a", float("nan"))) if pd.notna(latest.get("T_a")) else None,
-            "T_a_norm": float(latest.get("T_a_norm", float("nan"))) if pd.notna(latest.get("T_a_norm")) else None,
-            "T_a_regime": str(latest.get("T_a_regime", "")),
-            "R_o": float(latest.get("R_o", float("nan"))) if pd.notna(latest.get("R_o")) else None,
-            "T_v": float(latest.get("T_v", float("nan"))) if pd.notna(latest.get("T_v")) else None,
-            "observer_profile": str(latest.get("observer_profile", "")),
+        "cvd_note": "Signed-volume proxy (close direction x volume), not tick-true CVD.",
+        "rate_of_change_alerts": alerts,
+        "LRP_confidence": str(latest.get("LRP_confidence", "") or ""),
+        "LRP_raw": _finite_float(latest.get("LRP_raw"), default=None),
+        "lrp_contributions": {
+            "T_a contribution": _finite_float(latest.get("lrp_contrib_T_a"), default=None),
+            "Observer decay": _finite_float(latest.get("lrp_contrib_observer"), default=None),
+            "Gamma boundary pressure": _finite_float(latest.get("lrp_contrib_gamma"), default=None),
+            "VWAP dislocation": _finite_float(latest.get("lrp_contrib_vwap"), default=None),
+            "CVD imbalance": _finite_float(latest.get("lrp_contrib_cvd"), default=None),
+            "MACD acceleration": _finite_float(latest.get("lrp_contrib_macd"), default=None),
+        },
+        "derivatives": {
+            col: _finite_float(latest.get(col), default=None)
+            for col in DERIVATIVE_COLUMNS
+            if col in latest.index
         },
         "pressure_sensors": {
-            "macd_histogram": float(latest["macd_histogram"]),
-            "macd_regime": str(latest.get("macd_regime", "")),
-            "rsi": float(latest["rsi"]),
-            "rsi_saturation": str(latest.get("rsi_saturation", "")),
-            "cvd_imbalance": float(latest["cvd_imbalance"]),
-            "cvd_regime": str(latest.get("cvd_regime", "")),
-            "volume_injection": float(latest["volume_injection"]),
-            "volume_regime": str(latest.get("volume_regime", "")),
-            "vwap": float(latest["vwap"]),
-            "vwap_regime": str(latest.get("vwap_regime", "")),
-            "gamma_flip": gamma,
+            "macd_histogram": _finite_float(latest.get("macd_histogram"), default=None),
+            "rsi": _finite_float(latest.get("rsi"), default=None),
+            "volume_regime": str(latest.get("volume_regime", "") or ""),
+            "vwap_regime": str(latest.get("vwap_regime", "") or ""),
+            "gamma_regime": str(gamma.get("gamma_regime", "") or ""),
         },
         "canopyento": {
-            "B_s": float(latest["B_s"]),
-            "E_i": float(latest["E_i"]),
-            "rupture_pressure_score": float(latest["rupture_pressure_score"]),
-            "regime_label": str(latest.get("regime_label", "")),
+            "B_s": _finite_float(latest.get("B_s"), default=None),
+            "E_i": _finite_float(latest.get("E_i"), default=None),
+            "rupture_pressure_score": _finite_float(latest.get("rupture_pressure_score"), default=None),
         },
     }
     if pd.notna(latest.get("stance_quadrant")):
-        payload["weekly_stance"] = {
+        extras["weekly_stance"] = {
             "stance_quadrant": str(latest["stance_quadrant"]),
             "gate_stance": str(latest["gate_stance"]),
-            "stance_confidence": float(latest["stance_confidence"]),
+            "stance_confidence": _finite_float(latest.get("stance_confidence"), default=None),
             "recommended_action": str(latest["recommended_action"]),
         }
+    write_stable_snapshot_json(snapshot, json_path, extras=extras)
 
-    json_path = Path(json_path)
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+def open_dashboard(html_path: Path) -> None:
+    """Open generated dashboard HTML in the default browser."""
+    uri = html_path.resolve().as_uri()
+    if not webbrowser.open(uri):
+        print(f"Could not open browser automatically. Open manually: {html_path.resolve()}", file=sys.stderr)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -792,18 +1094,33 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--weekly-window", type=int, default=5, dest="weekly_window")
     parser.add_argument("--chart-days", type=int, default=DEFAULT_LOOKBACK_DAYS, dest="chart_days")
     parser.add_argument("--output", default=None, help="HTML output path")
+    parser.add_argument("--csv", default=None, dest="csv_output", help="CSV time series output path")
+    parser.add_argument("--report", default=None, help="Markdown report output path")
     parser.add_argument("--json", default=None, dest="json_output", help="JSON snapshot path")
+    parser.add_argument(
+        "--open",
+        action="store_true",
+        help="Open generated HTML dashboard in the default browser",
+    )
     args = parser.parse_args(argv)
 
     ticker = args.ticker.upper()
     html_path = Path(args.output or DEFAULT_OUTPUT_HTML.format(ticker=ticker))
     json_path = Path(args.json_output or DEFAULT_OUTPUT_JSON.format(ticker=ticker))
+    csv_path = Path(args.csv_output or DEFAULT_OUTPUT_CSV.format(ticker=ticker))
+    report_path = Path(args.report or DEFAULT_OUTPUT_MD.format(ticker=ticker))
 
     try:
         stock_df = load_stock_data_fallback(ticker, base_dir=args.stock_dir)
-        chain_date = get_most_recent_option_date(ticker, base_dir=args.option_dir, verbose=False)
-        option_df = load_option_chain_data(ticker, date=chain_date, base_dir=args.option_dir)
         spot = float(prepare_ohlcv(stock_df)["Close"].iloc[-1])
+
+        chain_date = "unavailable"
+        option_df: Optional[pd.DataFrame] = None
+        try:
+            chain_date = get_most_recent_option_date(ticker, base_dir=args.option_dir, verbose=False)
+            option_df = load_option_chain_data(ticker, date=chain_date, base_dir=args.option_dir)
+        except FileNotFoundError as exc:
+            print(f"Warning: option chain unavailable ({exc}). Gamma flip will be null.", file=sys.stderr)
 
         frame = build_pressure_frame(
             stock_df,
@@ -813,35 +1130,72 @@ def main(argv: Optional[list[str]] = None) -> int:
             weekly_window=args.weekly_window,
         )
         gamma = compute_gamma_flip(option_df, spot)
+        frame = enrich_pressure_derivatives(frame, gamma=gamma)
     except (FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     latest = frame.iloc[-1]
+    previous = frame.iloc[-2] if len(frame) > 1 else None
+    alerts = compute_rate_of_change_alerts(latest, previous=previous)
+    lrp_debug = build_lrp_debug_payload(frame, ticker=ticker, gamma=gamma)
+    write_lrp_debug_json(lrp_debug, Path(f"outputs/lrp_debug_{ticker}.json"))
+
+    write_pressure_field_csv(frame, csv_path)
+    write_pressure_field_report(
+        frame,
+        report_path,
+        ticker=ticker,
+        chain_date=chain_date,
+        gamma=gamma,
+        alerts=alerts,
+    )
     render_html_dashboard(
         frame,
         ticker=ticker,
         spot=spot,
         chain_date=chain_date,
         gamma=gamma,
+        alerts=alerts,
         output_path=html_path,
         chart_days=args.chart_days,
     )
-    write_latest_json(latest, gamma, json_path, ticker=ticker, spot=spot, chain_date=chain_date)
+    write_latest_json(
+        latest, gamma, json_path, ticker=ticker, spot=spot, chain_date=chain_date, alerts=alerts
+    )
 
     print(f"Pressure Field Dashboard complete for {ticker}")
-    print(f"  HTML:  {html_path}")
-    print(f"  JSON:  {json_path}")
+    print(f"  HTML:   {html_path}")
+    print(f"  JSON:   {json_path}")
+    print(f"  CSV:    {csv_path}")
+    print(f"  Report: {report_path}")
+    print(f"  Debug:  outputs/lrp_debug_{ticker}.json")
     print(
         f"  Latest: close=${spot:.2f} | MACD hist={latest['macd_histogram']:.4f} | "
         f"RSI={latest['rsi']:.1f} | CVD imb={latest['cvd_imbalance']:.3f} | "
-        f"gamma flip={gamma['gamma_flip_strike']}"
+        f"gamma flip={gamma.get('gamma_flip_strike')}"
     )
     if pd.notna(latest.get("R_o")):
         print(
             f"  Observer: R_o={latest['R_o']:.3f} | T_v={latest['T_v']} | "
             f"T_a={latest.get('T_a_regime', '')} | profile={latest.get('observer_profile', '')}"
         )
+    if pd.notna(latest.get("LRP")):
+        print(
+            f"  LRP: {latest['LRP']:.3f} (raw {latest.get('LRP_raw', float('nan')):.3f}) "
+            f"({latest.get('LRP_regime', '')}, {latest.get('LRP_confidence', '')})"
+        )
+        audit = lrp_debug.get("legacy_formula_audit", {})
+        if audit:
+            print(
+                f"  Legacy audit: ratio={audit.get('ratio_before_clamp')} "
+                f"numerator={audit.get('numerator_sum')} denominator={audit.get('denominator')} "
+                f"driver={audit.get('saturation_driver')}"
+            )
+    if alerts:
+        print(f"  Alerts: {', '.join(alerts)}")
+    if args.open:
+        open_dashboard(html_path)
     return 0
 
 

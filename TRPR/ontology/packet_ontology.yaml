@@ -1,0 +1,153 @@
+# ontology/packet_ontology.yaml
+# SACRED — do not drift. All future projects map local metrics to these primitives.
+
+metadata:
+  project: "Temporal Relational Packet Reconstructor"
+  schema_version: "0.1.0"
+  purpose: "Shared vocabulary for packet-based pressure, transition, and rupture analysis."
+
+packet:
+  definition: "A bounded unit of pressure, information, force, demand, risk, or signal moving through a relational system."
+  required_fields:
+    - id
+    - domain
+    - packet_type
+    - source
+    - target
+    - timestamp
+    - magnitude
+    - confidence
+
+packet_types:
+  pressure:
+    description: "Accumulated force or demand moving through a system."
+  signal:
+    description: "Observable information emitted by system behavior."
+  dependency:
+    description: "A coupling or reliance packet between components."
+  authority:
+    description: "Control or decision-rights packet."
+  liquidity:
+    description: "Market absorption or execution-capacity packet."
+  workflow:
+    description: "Task, case, or process-routing packet."
+  anomaly:
+    description: "Unexpected deviation from baseline behavior."
+
+packet_lifecycle:
+  states:
+    - generated
+    - propagating
+    - amplifying
+    - dissipating
+    - reflecting
+    - colliding
+    - compressing
+    - rupturing
+    - resolved
+    - archived
+
+core_primitives:
+  magnitude:
+    description: "Packet strength or intensity."
+    range: [0.0, 1.0]
+  velocity:
+    description: "Rate of packet movement or state change."
+    range: [0.0, 1.0]
+  acceleration:
+    description: "Second-order change in packet pressure or movement."
+    range: [-1.0, 1.0]
+  coherence:
+    description: "Directional integrity of packet movement."
+    range: [0.0, 1.0]
+  observability:
+    description: "How clearly the packet can be detected or reconstructed."
+    range: [0.0, 1.0]
+  dissipation:
+    description: "System capacity to absorb or release packet pressure."
+    range: [0.0, 1.0]
+  compression:
+    description: "Reduction of available routing/control pathways."
+    range: [0.0, 1.0]
+  recursion:
+    description: "Degree to which packet effects create additional packets."
+    range: [0.0, 1.0]
+
+derived_metrics:
+  latent_rupture_potential:
+    key: "LRP"
+    description: "Probability-like score estimating unresolved transition pressure."
+    range: [0.0, 1.0]
+  inward_drift_index:
+    key: "IDI"
+    description: "Degree to which a system collapses inward through coupling and dependency accumulation."
+    range: [0.0, 1.0]
+  observer_resolution:
+    key: "R_o"
+    description: "Observer ability to reconstruct latent packet movement."
+    range: [0.0, 1.0]
+  visibility_horizon:
+    key: "T_v"
+    description: "Estimated remaining sessions before packet state becomes hard to resolve."
+    unit: "sessions"
+  transition_acceleration:
+    key: "T_a"
+    description: "Second derivative of pressure-state transition."
+    range: [-1.0, 1.0]
+
+regimes:
+  stable:
+    range: [0.0, 0.30]
+  pressure_building:
+    range: [0.30, 0.60]
+  pre_rupture:
+    range: [0.60, 0.85]
+  rupture_imminent:
+    range: [0.85, 1.0]
+
+domains:
+  market:
+    examples:
+      - gamma_flip_packet
+      - vwap_attractor_packet
+      - cvd_force_packet
+      - liquidity_compression_packet
+  repo_architecture:
+    examples:
+      - dependency_packet
+      - stale_repo_packet
+      - inward_drift_packet
+      - recursive_call_packet
+  aviation_sim:
+    examples:
+      - authority_compression_packet
+      - sensor_confidence_packet
+      - navigation_coherence_packet
+      - observability_decay_packet
+  institution:
+    examples:
+      - workflow_backlog_packet
+      - approval_bottleneck_packet
+      - archive_recursion_packet
+  ecology:
+    examples:
+      - flock_signal_packet
+      - roost_attractor_packet
+      - scout_alert_packet
+
+alerts:
+  observability_decay_accelerating:
+    severity: medium
+  coherence_loss_accelerating:
+    severity: high
+  compression_rising:
+    severity: medium
+  dissipation_failure:
+    severity: high
+  rupture_imminent_lrp:
+    severity: critical
+
+implementation_notes:
+  - "Keep this file small and stable."
+  - "Do not add project-specific noise here unless it generalizes across domains."
+  - "Domain engines should map their local metrics into these shared primitives."

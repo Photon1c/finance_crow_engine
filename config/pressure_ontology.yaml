@@ -1,0 +1,65 @@
+# Finance Crow Engine — domain mapping layer (NOT the sacred ontology)
+# Canonical primitives: TRPR/ontology/packet_ontology.yaml
+# Charter: TRPR/ontology/ONTOLOGY_CHARTER.md
+# Rule: map local sensors → packet primitives; never redefine primitives here.
+
+canonical_source: TRPR/ontology/packet_ontology.yaml
+schema_version: "0.1.0"
+domain: market
+
+# Local sensor → sacred primitive / derived metric keys
+mappings:
+  rupture_pressure_score:
+    primitive: magnitude
+    packet_type: pressure
+  B_s:
+    primitive: compression
+    packet_type: pressure
+  macd_histogram:
+    primitive: acceleration
+    packet_type: signal
+  T_a:
+    derived_metric: transition_acceleration
+    key: T_a
+  T_a_norm:
+    derived_metric: transition_acceleration
+    key: T_a
+  R_o:
+    derived_metric: observer_resolution
+    key: R_o
+  T_v:
+    derived_metric: visibility_horizon
+    key: T_v
+  LRP:
+    derived_metric: latent_rupture_potential
+    key: LRP
+  LRP_regime:
+    regimes: stable | pressure_building | pre_rupture | rupture_imminent
+  gamma_flip:
+    packet_example: gamma_flip_packet
+    domain: market
+  vwap_distance_pct:
+    packet_example: vwap_attractor_packet
+    domain: market
+  cvd_imbalance:
+    packet_example: cvd_force_packet
+    domain: market
+  volume_injection:
+    packet_type: liquidity
+    primitive: dissipation
+
+alerts:
+  OBSERVABILITY_DECAY_ACCELERATING: observability_decay_accelerating
+  COHERENCE_LOSS_ACCELERATING: coherence_loss_accelerating
+  GAMMA_BOUNDARY_APPROACHING: compression_rising
+  VWAP_DISLOCATION_EXPANDING: compression_rising
+  PRESSURE_ACCELERATION_POSITIVE: compression_rising
+  RUPTURE_IMMINENT_LRP: rupture_imminent_lrp
+
+notes:
+  cvd: >
+    CVD in this stack is a signed-volume proxy (close-direction × volume),
+    not tick-true cumulative volume delta.
+  philosophy: >
+    Complex systems do not fail equally for all observers.
+    The system changes before most observers are capable of perceiving the change.

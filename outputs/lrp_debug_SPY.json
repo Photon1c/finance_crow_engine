@@ -1,0 +1,88 @@
+{
+  "ticker": "SPY",
+  "diagnosis": "Legacy model sums five 0..1 pressure terms then divides by a small absorption denominator (~0.3-0.7), causing ratio > 1 and hard clamp saturation.",
+  "legacy_formula_audit": {
+    "components": {
+      "T_a_norm": 0.559949,
+      "one_minus_R_o": 0.420912,
+      "gamma_flip_pressure": 0.345106,
+      "vwap_dislocation_pressure": 0.469469,
+      "cvd_imbalance_pressure": 0.273292,
+      "B_s": 0.3,
+      "volume_absorption_capacity": 0.390033,
+      "macd_pressure_acceleration": 0.446093
+    },
+    "numerator_sum": 2.068728,
+    "denominator": 0.690033,
+    "ratio_before_clamp": 2.998013,
+    "LRP_legacy_clamped": 1.0,
+    "saturation_driver": "denominator_too_weak"
+  },
+  "calibrated_model": {
+    "weights": {
+      "T_a_norm": 0.2,
+      "observer_blindspot": 0.2,
+      "gamma_flip_pressure": 0.2,
+      "vwap_dislocation_pressure": 0.15,
+      "cvd_imbalance_pressure": 0.1,
+      "macd_pressure_acceleration": 0.15
+    },
+    "absorption_damping": 0.12,
+    "sigmoid": "1 / (1 + exp(-4.0 * (LRP_raw - 0.5)))",
+    "latest_LRP_raw": 0.394263,
+    "latest_LRP": 0.395812,
+    "latest_LRP_regime": "PRESSURE_BUILDING",
+    "latest_LRP_confidence": "HIGH_CONFIDENCE",
+    "component_contributions": {
+      "T_a contribution": 0.112,
+      "Observer decay": 0.0842,
+      "Gamma boundary pressure": 0.069,
+      "VWAP dislocation": 0.0704,
+      "CVD imbalance": 0.0273,
+      "MACD acceleration": 0.0669
+    },
+    "absorption_terms": {
+      "B_s": 0.3,
+      "volume_absorption_capacity": 0.390033
+    }
+  },
+  "historical_calibration": {
+    "LOW_VOLATILITY_DAY": {
+      "label": "LOW_VOLATILITY_DAY",
+      "date": "2026-04-06",
+      "close": 658.93,
+      "LRP": 0.2592,
+      "LRP_raw": 0.2374,
+      "LRP_regime": "STABLE",
+      "LRP_confidence": "HIGH_CONFIDENCE",
+      "rupture_pressure_score": 0.0796
+    },
+    "NORMAL_CRUISE_DAY": {
+      "label": "NORMAL_CRUISE_DAY",
+      "date": "2017-03-27",
+      "close": 233.62,
+      "LRP": 0.2872,
+      "LRP_raw": 0.2728,
+      "LRP_regime": "STABLE",
+      "LRP_confidence": "HIGH_CONFIDENCE",
+      "rupture_pressure_score": 0.1012
+    },
+    "HIGH_PRESSURE_BREAKOUT_DAY": {
+      "label": "HIGH_PRESSURE_BREAKOUT_DAY",
+      "date": "2026-06-11",
+      "close": 737.76,
+      "LRP": 0.5019,
+      "LRP_raw": 0.5019,
+      "LRP_regime": "PRESSURE_BUILDING",
+      "LRP_confidence": "HIGH_CONFIDENCE",
+      "rupture_pressure_score": 0.5633
+    }
+  },
+  "distribution": {
+    "LRP_mean": 0.3022,
+    "LRP_median": 0.2866,
+    "LRP_p95": 0.4616,
+    "LRP_max": 0.6664,
+    "share_above_0_95": 0.0
+  }
+}

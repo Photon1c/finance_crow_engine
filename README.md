@@ -27,6 +27,15 @@ recursive_trade_aggregator/
 ├── ★ demo_spy_trade.py                    ← end-to-end SPY put logistics-driver demo
 ├── ★ canopyento_boundary_engine.py        ← boundary stress + weekly stance filter
 ├── ★ capillary_engine.py                  ← micro-noise absorption overlay (reads CanopyEnto CSV)
+├── ★ pressure_field_dashboard.py          ← HTML pressure-field dashboard (MACD/RSI/CVD/VWAP/gamma)
+├── pressure_field_schema.py               ← stable latest JSON snapshot keys
+├── pressure_field_derivatives.py          ← LRP, rate-of-change derivatives, alerts
+├── config/pressure_ontology.yaml          ← market domain mapping (references sacred ontology)
+├── TRPR/                                  ← Temporal Relational Packet Reconstructor root
+│   └── ontology/
+│       ├── packet_ontology.yaml           ← SACRED shared packet vocabulary
+│       ├── ONTOLOGY_CHARTER.md            ← drift prevention charter
+│       └── packet_ontology_loader.py      ← optional read-only loader
 │
 ├── data_loader.py                         ← shared stock + option CSV loading
 ├── recursive_weight_engine.py             ← JSON weight load/save, packet scoring, online updates
@@ -66,7 +75,11 @@ recursive_trade_aggregator/
 │   ├── canopyento_weekly_stance_{TICKER}.json ← latest stance packet (dashboard-ready)
 │   ├── capillary_engine_{TICKER}.csv      ← capillary metrics time series
 │   ├── capillary_engine_{TICKER}.md       ← capillary report
-│   └── capillary_engine_latest_{TICKER}.json ← latest capillary snapshot
+│   ├── capillary_engine_latest_{TICKER}.json ← latest capillary snapshot
+│   ├── pressure_field_dashboard_{TICKER}.html ← interactive pressure-field dashboard
+│   ├── pressure_field_{TICKER}.csv        ← pressure field + LRP + derivative time series
+│   ├── pressure_field_{TICKER}.md         ← markdown report with LRP and ROC alerts
+│   └── pressure_field_latest_{TICKER}.json  ← stable latest snapshot (dashboard)
 │
 ├── recursive_weights_SPY.json             ← legacy/root copies (prefer outputs/)
 ├── recursive_weights_UEC.json
@@ -95,6 +108,7 @@ F:/inputs/
 | Demo the logistics driver on SPY | `demo_spy_trade.py` | `python demo_spy_trade.py` |
 | Detect boundary containment stress | `canopyento_boundary_engine.py` | `python canopyento_boundary_engine.py` |
 | Measure micro-noise absorption (Capillary) | `capillary_engine.py` | `python capillary_engine.py --ticker SPY` |
+| View pressure-field HTML dashboard | `pressure_field_dashboard.py` | `python pressure_field_dashboard.py --ticker SPY --open` |
 | Run full market-state stack | CanopyEnto → Capillary | see [Quick start](#quick-start) |
 | Animate the failure pipeline | `misc_packet_visualizer.py` (via flag) | `python recursive_trade_failure.py --csv --visual` |
 | Run the ring-toss pygame demo | `disposition_ring_toss.py` | `python disposition_ring_toss.py` |
@@ -130,12 +144,19 @@ data_loader.py → canopyento_boundary_engine.py
                       ├── B_s, E_i, rupture_pressure_score, regime_label
                       ├── regime_persistence, rupture_probability
                       ├── weekly stance vector (direction vs trade permission)
+                      ├── observer differential (T_a, R_o, T_v, observer_profile)
                       └── outputs/canopyento_boundary_{TICKER}.csv + .md + .json
                                 ↓
                       capillary_engine.py
                       ├── brownian_noise, wave_persistence, compression
                       ├── surface_tension, capillary_score, cruise_integrity
                       └── outputs/capillary_engine_{TICKER}.csv + .md + .json
+
+pressure_field_dashboard.py (parallel read — uses stock + option CSV directly)
+                      ├── MACD, RSI, CVD proxy, Volume, VWAP, gamma flip
+                      ├── LRP (Latent Rupture Potential) + rate-of-change derivatives
+                      ├── merges CanopyEnto boundary + observer differential metrics
+                      └── outputs/pressure_field_*.{html,csv,md,json}
 ```
 
 **CanopyEnto** detects stored pressure and boundary regime. **Capillary** detects whether microscopic noise is still being absorbed. A market can remain in cruise mode while its Brownian layer becomes increasingly unstable.
@@ -163,6 +184,9 @@ python canopyento_boundary_engine.py
 # Capillary Engine — reads CanopyEnto output (run CanopyEnto first)
 python capillary_engine.py --ticker SPY
 
+# Pressure Field Dashboard — HTML + stable JSON snapshot
+python pressure_field_dashboard.py --ticker SPY --open
+
 # Full market-state stack
 python canopyento_boundary_engine.py --ticker SPY
 python capillary_engine.py --ticker SPY
@@ -180,6 +204,59 @@ python capillary_engine.py --ticker SPY
 | **`demo_spy_trade.py`** | End-to-end demo of the Trading Logistics Driver on SPY. Loads CSV snapshot, picks a cheap put (ask ≤ $1.50 by default), anchors entry to today, plans exit 7–14 days out, and prints a Markdown evaluation report. |
 | **`canopyento_boundary_engine.py`** | Boundary containment stress engine. Computes `B_s`, `E_i`, rupture pressure, regime labels, and a weekly stance filter that separates **directional bias** from **trade permission**. Forecasts state maturity, not price. |
 | **`capillary_engine.py`** | Capillary instability overlay. Reads CanopyEnto CSV output and measures whether microscopic noise is being absorbed or beginning to persist and amplify toward rupture. |
+| **`pressure_field_dashboard.py`** | Multi-sensor HTML dashboard. Loads stock + option CSV via `data_loader`, computes MACD/RSI/CVD/VWAP/gamma flip, merges CanopyEnto observer metrics, writes `outputs/pressure_field_dashboard_{TICKER}.html` and stable JSON snapshot. |
+
+### Pressure Field Dashboard
+
+**Run**
+
+```powershell
+python pressure_field_dashboard.py --ticker SPY --open
+```
+
+**Required inputs** (defaults shown; override with `--stock-dir` / `--option-dir`):
+
+| Input | Default path |
+|-------|----------------|
+| Stock OHLCV CSV | `F:/inputs/stocks/{TICKER}.csv` |
+| Option chain snapshot | `F:/inputs/options/log/{ticker}/{date}/{ticker}_quotedata.csv` |
+
+If the option chain is missing, the dashboard still runs; gamma flip fields are written as `null` with `gamma_regime: NO_CHAIN`.
+
+**Outputs**
+
+| File | Contents |
+|------|----------|
+| `outputs/pressure_field_dashboard_{TICKER}.html` | Self-contained interactive dashboard (LRP card + ROC alerts) |
+| `outputs/pressure_field_{TICKER}.csv` | Time series with LRP, derivatives, and sensor regimes |
+| `outputs/pressure_field_{TICKER}.md` | Markdown report with LRP snapshot and alerts |
+| `outputs/pressure_field_latest_{TICKER}.json` | Stable flat snapshot for downstream ingestion |
+
+Both `pressure_field_latest_{TICKER}.json` and `canopyento_weekly_stance_{TICKER}.json` share the same core keys:
+
+`ticker`, `timestamp`, `close`, `macd_regime`, `rsi_regime`, `cvd_regime`, `volume_ratio`, `vwap_distance_pct`, `gamma_flip`, `gamma_flip_distance_pct`, `canopy_regime`, `T_a`, `T_a_norm`, `T_a_regime`, `R_o`, `T_v`, `observer_profile`, `LRP`, `LRP_regime`, `d_canopy_pressure`, `dd_canopy_pressure`, `d_R_o`, `d_T_v`, `d_gamma_flip_distance`, `d_vwap_distance`
+
+**Observer differential variables (CanopyEnto)**
+
+| Variable | Meaning |
+|----------|---------|
+| **T_a** | Transitional acceleration — second derivative of rupture pressure (`d²P/dt²`). Positive → takeoff beginning; near zero → cruise; negative → thrust loss; strongly negative → dissipation cascade. |
+| **R_o** | Observational resolution — ability to perceive latent instability before visible rupture (0–1). Higher → earlier detection. |
+| **T_v** | Visibility horizon — sessions before rupture becomes visible to this observer; `T_v = f(R_o)`, clamped 0–10 sessions. |
+| **observer_profile** | Tier label derived from R_o: `passenger` (low), `pilot` (medium), `mechanic` (high). |
+
+**Latent Rupture Potential (LRP)**
+
+| Variable | Meaning |
+|----------|---------|
+| **LRP** | Composite pre-rupture score in [0, 1]: normalized sum of T_a, observer blindspot, gamma/vwap/cvd pressures divided by boundary stability + volume absorption capacity. |
+| **LRP_regime** | `STABLE` (<0.30) · `PRESSURE_BUILDING` · `PRE_RUPTURE` · `RUPTURE_IMMINENT` (≥0.85) |
+
+**Rate-of-change derivatives** (first row defaults to 0.0): `d_macd_pressure`, `d_rsi_energy`, `d_cvd_force`, `d_volume_energy`, `d_vwap_attractor_distance`, `d_gamma_flip_distance`, `d_canopy_pressure`, `d_observability_R_o`, `d_visibility_horizon_T_v`, plus `dd_canopy_pressure`, `dd_observability_R_o`, `dd_coherence_proxy`.
+
+**CVD note:** CVD in this stack is a **signed-volume proxy** (close direction × volume), not tick-true cumulative volume delta.
+
+Shared vocabulary hook (no inference engine yet): `config/pressure_ontology.yaml`
 
 ### Recursive failure pipeline
 

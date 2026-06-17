@@ -8,7 +8,14 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
 import pandas as pd
+
+try:
+    from pressure_field_schema import build_stable_snapshot, write_stable_snapshot_json
+except ImportError:
+    build_stable_snapshot = None  # type: ignore[misc, assignment]
+    write_stable_snapshot_json = None  # type: ignore[misc, assignment]
 
 try:
     from data_loader import DEFAULT_STOCK_DIR, load_stock_data, parse_price
@@ -566,10 +573,18 @@ def compute_visibility_horizon(r_o: float, *, base_sessions: float = 10.0) -> fl
     Observer Differential Theory: T_v = f(R_o).
 
     Higher observational resolution → lower T_v (earlier detection of latent rupture).
+    Clamped to [0, 10] sessions.
     """
     if pd.isna(r_o):
         return float("nan")
-    return round(max(1.0, base_sessions * (1.0 - r_o) ** 1.4), 1)
+    r_o = _clip01(float(r_o))
+    horizon = base_sessions * (1.0 - r_o) ** 1.4
+    return round(min(10.0, max(0.0, horizon)), 1)
+
+
+def _sanitize_ta_series(series: pd.Series) -> pd.Series:
+    """Replace non-finite T_a values with NaN."""
+    return series.replace([np.inf, -np.inf], np.nan)
 
 
 def compute_observer_differential_metrics(
@@ -578,6 +593,7 @@ def compute_observer_differential_metrics(
     pressure_col: str = "rupture_pressure_score",
     ta_window: int = 20,
     visibility_base: float = 10.0,
+    min_pressure_rows: int = 3,
 ) -> pd.DataFrame:
     """
     Attach transitional acceleration (T_a), observational resolution (R_o),
@@ -587,23 +603,39 @@ def compute_observer_differential_metrics(
     for col in ("T_a", "T_a_norm", "T_a_regime", "R_o", "T_v", "observer_profile"):
         result[col] = pd.NA
 
-    if pressure_col not in result.columns:
+    if pressure_col not in result.columns or len(result) < min_pressure_rows:
         return result
 
     pressure = result[pressure_col].astype(float)
     d_pressure = pressure.diff()
-    result["T_a"] = d_pressure.diff()
+    result["T_a"] = _sanitize_ta_series(d_pressure.diff())
 
-    ta_std = result["T_a"].rolling(ta_window, min_periods=max(5, ta_window // 4)).std()
-    result["T_a_norm"] = result["T_a"] / ta_std.where(ta_std > 0)
+    min_periods = max(3, min(ta_window // 4, ta_window))
+    ta_std = result["T_a"].rolling(ta_window, min_periods=min_periods).std()
+    flat_mask = ta_std.isna() | (ta_std <= 1e-12)
+    result["T_a_norm"] = result["T_a"] / ta_std.where(~flat_mask)
+    result["T_a_norm"] = _sanitize_ta_series(result["T_a_norm"])
+    result.loc[flat_mask, "T_a_norm"] = np.nan
 
     for idx in result.index:
         t_a_norm = result.at[idx, "T_a_norm"]
-        if pd.isna(t_a_norm):
+        t_a_raw = result.at[idx, "T_a"]
+        if pd.isna(t_a_raw):
             continue
-        result.at[idx, "T_a_regime"] = classify_t_a_regime(float(t_a_norm))
+        if pd.isna(t_a_norm):
+            result.at[idx, "T_a_regime"] = "CRUISE" if abs(float(t_a_raw)) < 1e-12 else ""
+            if not pd.isna(result.at[idx, "T_a_regime"]) and result.at[idx, "T_a_regime"]:
+                row = result.loc[idx]
+                r_o = _clip01(compute_observational_resolution(row, t_a_norm=0.0))
+                result.at[idx, "R_o"] = r_o
+                result.at[idx, "T_v"] = compute_visibility_horizon(r_o, base_sessions=visibility_base)
+                result.at[idx, "observer_profile"] = resolve_observer_profile(r_o)
+            continue
+
+        t_a_norm_f = float(t_a_norm)
+        result.at[idx, "T_a_regime"] = classify_t_a_regime(t_a_norm_f)
         row = result.loc[idx]
-        r_o = compute_observational_resolution(row, t_a_norm=float(t_a_norm))
+        r_o = _clip01(compute_observational_resolution(row, t_a_norm=t_a_norm_f))
         result.at[idx, "R_o"] = r_o
         result.at[idx, "T_v"] = compute_visibility_horizon(r_o, base_sessions=visibility_base)
         result.at[idx, "observer_profile"] = resolve_observer_profile(r_o)
@@ -795,11 +827,10 @@ def write_weekly_stance_json(
     *,
     ticker: str,
     as_of_date: str,
+    latest_row: Optional[pd.Series] = None,
 ) -> None:
-    """Write the latest weekly stance packet as JSON for dashboard ingestion."""
-    payload = {
-        "ticker": ticker.upper(),
-        "as_of_date": as_of_date,
+    """Write latest CanopyEnto JSON with stable snapshot keys plus stance block."""
+    extras = {
         "philosophy": (
             "Forecast state maturity, not price. Direction may exist while trade permission "
             "remains weak until the observed packet resolves."
@@ -812,6 +843,16 @@ def write_weekly_stance_json(
         "stance_quadrant": stance["stance_quadrant"],
         "recommended_action": stance["recommended_action"],
     }
+    if build_stable_snapshot is not None and latest_row is not None:
+        snapshot = build_stable_snapshot(
+            ticker=ticker,
+            latest=latest_row,
+            timestamp=f"{as_of_date}T00:00:00Z",
+        )
+        write_stable_snapshot_json(snapshot, json_path, extras=extras)
+        return
+
+    payload = {"ticker": ticker.upper(), "as_of_date": as_of_date, **extras}
     json_path = Path(json_path)
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -925,6 +966,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             stance_json_path,
             ticker=ticker,
             as_of_date=latest_date_str,
+            latest_row=latest,
         )
 
     print(f"CanopyEnto boundary analysis complete for {ticker}")
