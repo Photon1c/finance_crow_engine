@@ -78,6 +78,29 @@
       "rupture_pressure_score": 0.5633
     }
   },
+  "loop_closure_adjusted_model": {
+    "label": "experimental \u2014 not canonical; restoration-adjusted rupture risk",
+    "latest_LRP_adjusted_raw": 0.300402,
+    "latest_LRP_adjusted": 0.310369,
+    "latest_LRP_adjusted_regime": "PRESSURE_BUILDING",
+    "baseline_LRP": 0.395812,
+    "delta_vs_baseline": -0.085442,
+    "adjustment_terms": {
+      "restoration_damper": 0.55,
+      "capillary_boost": 1.1354,
+      "hysteresis_boost": 1.1938,
+      "observer_boost": 1.0221
+    },
+    "inputs": {
+      "restoration_ratio": 1.6384,
+      "F_r": 0.6485,
+      "D_c": 0.47,
+      "C_w": 0.5414,
+      "recursive_pressure_carryover": 0.8613,
+      "H_s": 0.4309,
+      "observer_feedback_score": 0.1473
+    }
+  },
   "distribution": {
     "LRP_mean": 0.3022,
     "LRP_median": 0.2866,

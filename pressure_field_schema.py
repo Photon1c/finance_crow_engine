@@ -11,7 +11,8 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
-STABLE_SNAPSHOT_KEYS = (
+# Core keys — preserve order for downstream scripts written before loop closure.
+STABLE_CORE_SNAPSHOT_KEYS = (
     "ticker",
     "timestamp",
     "close",
@@ -37,6 +38,28 @@ STABLE_SNAPSHOT_KEYS = (
     "d_T_v",
     "d_gamma_flip_distance",
     "d_vwap_distance",
+)
+
+# Extended keys appended after core — experimental physics / loop closure.
+STABLE_EXTENDED_SNAPSHOT_KEYS = (
+    "LRP_adjusted",
+    "LRP_adjusted_regime",
+    "F_r",
+    "D_c",
+    "restoration_ratio",
+    "dissipation_score",
+    "A_micro",
+    "C_w",
+    "capillary_wave_score",
+    "field_regime",
+    "entropy_score",
+)
+
+STABLE_SNAPSHOT_KEYS = STABLE_CORE_SNAPSHOT_KEYS + STABLE_EXTENDED_SNAPSHOT_KEYS
+
+LRP_DOCTRINE = (
+    "Baseline LRP = pressure signal; "
+    "LRP_adjusted (experimental) = pressure after restoration/capillary/hysteresis/observer modifiers."
 )
 
 
@@ -79,7 +102,7 @@ def build_stable_snapshot(
     flip_strike = safe_float(gamma.get("gamma_flip_strike"))
     flip_distance = safe_float(gamma.get("distance_to_flip_pct"))
 
-    snapshot = {
+    values = {
         "ticker": ticker.upper(),
         "timestamp": timestamp or format_timestamp(latest.get("Date")),
         "close": close,
@@ -105,8 +128,19 @@ def build_stable_snapshot(
         "d_T_v": safe_float(latest.get("d_T_v", latest.get("d_visibility_horizon_T_v"))),
         "d_gamma_flip_distance": safe_float(latest.get("d_gamma_flip_distance")),
         "d_vwap_distance": safe_float(latest.get("d_vwap_distance", latest.get("d_vwap_attractor_distance"))),
+        "LRP_adjusted": safe_float(latest.get("LRP_adjusted")),
+        "LRP_adjusted_regime": str(latest.get("LRP_adjusted_regime", "") or ""),
+        "F_r": safe_float(latest.get("F_r")),
+        "D_c": safe_float(latest.get("D_c")),
+        "restoration_ratio": safe_float(latest.get("restoration_ratio")),
+        "dissipation_score": safe_float(latest.get("dissipation_score")),
+        "A_micro": safe_float(latest.get("A_micro")),
+        "C_w": safe_float(latest.get("C_w")),
+        "capillary_wave_score": safe_float(latest.get("capillary_wave_score")),
+        "field_regime": str(latest.get("field_regime", "") or ""),
+        "entropy_score": safe_float(latest.get("entropy_score")),
     }
-    return snapshot
+    return {key: values[key] for key in STABLE_SNAPSHOT_KEYS}
 
 
 def write_stable_snapshot_json(
@@ -115,8 +149,8 @@ def write_stable_snapshot_json(
     *,
     extras: Optional[dict[str, Any]] = None,
 ) -> None:
-    """Write stable snapshot JSON, optionally merging extension blocks."""
-    payload = dict(snapshot)
+    """Write stable snapshot JSON with core keys first, then extension blocks."""
+    payload: dict[str, Any] = {key: snapshot[key] for key in STABLE_SNAPSHOT_KEYS if key in snapshot}
     if extras:
         payload.update(extras)
     json_path = Path(json_path)

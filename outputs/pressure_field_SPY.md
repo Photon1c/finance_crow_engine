@@ -9,6 +9,19 @@
 - **LRP:** 0.3958
 - **LRP_regime:** PRESSURE_BUILDING
 
+## Restoration-Adjusted Rupture Risk — experimental (not canonical)
+
+- **LRP Adjusted (experimental):** 0.3104
+- **LRP_adjusted_regime (experimental):** PRESSURE_BUILDING
+- **restoration_damper:** 0.5500
+- **capillary_boost:** 1.1354
+- **hysteresis_boost:** 1.1938
+- **observer_boost:** 1.0221
+
+_Baseline LRP = pressure-driven risk (canonical). LRP Adjusted (experimental) = compensatory-capacity-adjusted risk — do not treat as canonical._
+
+_Baseline LRP = pressure signal; LRP_adjusted (experimental) = pressure after restoration/capillary/hysteresis/observer modifiers._
+
 ## Rate-of-Change Snapshot
 
 - **d_canopy_pressure:** +0.017205
@@ -44,6 +57,16 @@
 - GAMMA_BOUNDARY_APPROACHING
 - VWAP_DISLOCATION_EXPANDING
 - PRESSURE_ACCELERATION_POSITIVE
+
+## Restoration & Capillary Physics
+
+- **F_r:** 0.6485
+- **D_c / dissipation_score:** 0.4700
+- **restoration_ratio:** 1.6384
+- **A_micro:** 0.7132
+- **C_w / capillary_wave_score:** 0.5414
+- **field_regime:** COHERENT_MAINTENANCE_UNDER_STRESS
+- **entropy_score:** 0.5897
 
 ## Gamma Flip
 

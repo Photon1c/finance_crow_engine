@@ -104,6 +104,29 @@ def list_alert_ids(*, path: Optional[Path] = None) -> list[str]:
     return list(alerts.keys())
 
 
+def list_named_regimes(*, path: Optional[Path] = None) -> list[str]:
+    """Return sacred named field regime keys (e.g. RESTORED_EQUILIBRIUM)."""
+    ontology = load_packet_ontology(path=path)
+    named = ontology.get("named_regimes", {})
+    keys = []
+    for spec in named.values():
+        if isinstance(spec, dict) and spec.get("key"):
+            keys.append(str(spec["key"]))
+    return keys
+
+
+def get_named_regime(name: str, *, path: Optional[Path] = None) -> dict[str, Any]:
+    """Lookup named regime by block name (restored_equilibrium) or key (RESTORED_EQUILIBRIUM)."""
+    ontology = load_packet_ontology(path=path)
+    named = ontology.get("named_regimes", {})
+    if name in named:
+        return dict(named[name])
+    for block_name, block in named.items():
+        if isinstance(block, dict) and block.get("key") == name:
+            return {"name": block_name, **block}
+    raise KeyError(f"Unknown named regime: {name}")
+
+
 def ontology_reference() -> str:
     """Return canonical relative path string for documentation and mapping files."""
     return "TRPR/ontology/packet_ontology.yaml"

@@ -1,4 +1,8 @@
-"""Capillary Engine — microscopic noise absorption vs persistence during cruise mode."""
+"""Capillary Engine — microscopic noise absorption vs persistence during cruise mode.
+
+Macro/mid micro-noise absorption layer (reads CanopyEnto boundary CSV).
+For local oscillatory instability near boundary, see capillary_wave_engine.py.
+"""
 
 from __future__ import annotations
 

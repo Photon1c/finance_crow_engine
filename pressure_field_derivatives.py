@@ -86,6 +86,16 @@ LRP_CONTRIB_COLUMNS = (
     "lrp_contrib_macd",
 )
 
+LRP_ADJUSTED_COLUMNS = (
+    "restoration_damper",
+    "capillary_boost",
+    "hysteresis_boost",
+    "observer_boost",
+    "LRP_adjusted_raw",
+    "LRP_adjusted",
+    "LRP_adjusted_regime",
+)
+
 
 def clip01(value: float) -> float:
     return float(max(0.0, min(1.0, value)))
@@ -329,6 +339,53 @@ def compute_lrp(
     return result
 
 
+def _clamp_multiplier(series: pd.Series, low: float, high: float) -> pd.Series:
+    return series.astype(float).replace([np.inf, -np.inf], np.nan).fillna(1.0).clip(low, high)
+
+
+def compute_lrp_adjusted(df: pd.DataFrame) -> pd.DataFrame:
+    """Sibling metric: restoration-adjusted LRP (experimental). Baseline LRP unchanged."""
+    result = df.copy()
+    if "LRP_raw" not in result.columns:
+        result["LRP_raw"] = SIGMOID_MIDPOINT
+
+    restoration_ratio = _as_float_series(result, "restoration_ratio", default=1.0)
+    c_w = _as_float_series(result, "C_w", default=0.0)
+    carryover = _as_float_series(result, "recursive_pressure_carryover", default=0.0)
+    observer = _as_float_series(result, "observer_feedback_score", default=0.0)
+    if observer.eq(0.0).all():
+        observer = _as_float_series(result, "O_i", default=0.0)
+    post_stress = _as_float_series(result, "post_stress_sensitivity", default=1.0)
+    lrp_raw = _as_float_series(result, "LRP_raw", default=SIGMOID_MIDPOINT)
+
+    restoration_damper = _clamp_multiplier(1.0 - 0.35 * restoration_ratio, 0.55, 1.15)
+    capillary_boost = _clamp_multiplier(1.0 + 0.25 * c_w, 1.0, 1.40)
+    hysteresis_boost = _clamp_multiplier(
+        1.0 + 0.20 * carryover + 0.10 * (post_stress - 1.0),
+        1.0,
+        1.35,
+    )
+    observer_boost = _clamp_multiplier(1.0 + 0.15 * observer, 1.0, 1.25)
+
+    adjusted_raw = (
+        lrp_raw * restoration_damper * capillary_boost * hysteresis_boost * observer_boost
+    ).clip(lower=0.0, upper=2.0)
+
+    result["restoration_damper"] = restoration_damper
+    result["capillary_boost"] = capillary_boost
+    result["hysteresis_boost"] = hysteresis_boost
+    result["observer_boost"] = observer_boost
+    result["LRP_adjusted_raw"] = adjusted_raw
+    result["LRP_adjusted"] = sigmoid_lrp(adjusted_raw)
+    result["LRP_adjusted_regime"] = result["LRP_adjusted"].apply(classify_lrp_regime)
+    return result
+
+
+def apply_lrp_loop_closure(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply physics loop closure after enrich_pressure_physics. Preserves baseline LRP."""
+    return compute_lrp_adjusted(df)
+
+
 def compute_pressure_derivatives(df: pd.DataFrame) -> pd.DataFrame:
     """Compute first/second derivatives for pressure-field variables."""
     result = df.copy()
@@ -462,6 +519,36 @@ def build_lrp_debug_payload(
         "MACD acceleration": round(float(latest.get("lrp_contrib_macd", 0.0)), 4),
     }
 
+    adjusted_block: dict[str, Any] = {}
+    if "LRP_adjusted" in df.columns:
+        adjusted_block = {
+            "label": "experimental — not canonical; restoration-adjusted rupture risk",
+            "latest_LRP_adjusted_raw": round(float(latest.get("LRP_adjusted_raw", float("nan"))), 6),
+            "latest_LRP_adjusted": round(float(latest.get("LRP_adjusted", float("nan"))), 6),
+            "latest_LRP_adjusted_regime": str(latest.get("LRP_adjusted_regime", "")),
+            "baseline_LRP": round(float(latest.get("LRP", float("nan"))), 6),
+            "delta_vs_baseline": round(
+                float(latest.get("LRP_adjusted", 0.0)) - float(latest.get("LRP", 0.0)), 6
+            ),
+            "adjustment_terms": {
+                "restoration_damper": round(float(latest.get("restoration_damper", 1.0)), 4),
+                "capillary_boost": round(float(latest.get("capillary_boost", 1.0)), 4),
+                "hysteresis_boost": round(float(latest.get("hysteresis_boost", 1.0)), 4),
+                "observer_boost": round(float(latest.get("observer_boost", 1.0)), 4),
+            },
+            "inputs": {
+                "restoration_ratio": round(float(latest.get("restoration_ratio", float("nan"))), 4),
+                "F_r": round(float(latest.get("F_r", float("nan"))), 4),
+                "D_c": round(float(latest.get("D_c", float("nan"))), 4),
+                "C_w": round(float(latest.get("C_w", float("nan"))), 4),
+                "recursive_pressure_carryover": round(
+                    float(latest.get("recursive_pressure_carryover", float("nan"))), 4
+                ),
+                "H_s": round(float(latest.get("H_s", latest.get("historical_stress_memory", float("nan")))), 4),
+                "observer_feedback_score": round(float(latest.get("observer_feedback_score", float("nan"))), 4),
+            },
+        }
+
     return {
         "ticker": ticker.upper(),
         "diagnosis": (
@@ -495,6 +582,7 @@ def build_lrp_debug_payload(
             },
         },
         "historical_calibration": select_calibration_sessions(df),
+        "loop_closure_adjusted_model": adjusted_block,
         "distribution": {
             "LRP_mean": round(float(df["LRP"].mean()), 4),
             "LRP_median": round(float(df["LRP"].median()), 4),
@@ -553,9 +641,12 @@ def compute_rate_of_change_alerts(
         alerts.append("PRESSURE_ACCELERATION_POSITIVE")
 
     lrp = _float_or_zero(latest.get("LRP"))
+    lrp_adj = _float_or_zero(latest.get("LRP_adjusted"))
     confidence = str(latest.get("LRP_confidence", ""))
     if lrp >= 0.90 and confidence != "LOW_CONFIDENCE":
         alerts.append("RUPTURE_IMMINENT_LRP")
+    if lrp_adj >= 0.90 and lrp_adj > lrp and confidence != "LOW_CONFIDENCE":
+        alerts.append("RESTORATION_FAILURE_LRP_ADJUSTED")
 
     return alerts
 

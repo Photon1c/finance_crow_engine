@@ -24,6 +24,17 @@
   "d_T_v": 0.2999999999999998,
   "d_gamma_flip_distance": 1.728752241697615,
   "d_vwap_distance": 1.6513325518648794,
+  "LRP_adjusted": 0.310369254584443,
+  "LRP_adjusted_regime": "PRESSURE_BUILDING",
+  "F_r": 0.6484811148035411,
+  "D_c": 0.4700057782178366,
+  "restoration_ratio": 1.6383582826611682,
+  "dissipation_score": 0.4700057782178366,
+  "A_micro": 0.7132291344901006,
+  "C_w": 0.5414335346978012,
+  "capillary_wave_score": 0.5414335346978012,
+  "field_regime": "COHERENT_MAINTENANCE_UNDER_STRESS",
+  "entropy_score": 0.589668198341333,
   "chain_date": "06_15_2026",
   "cvd_note": "Signed-volume proxy (close direction x volume), not tick-true CVD.",
   "rate_of_change_alerts": [
@@ -34,6 +45,16 @@
   ],
   "LRP_confidence": "HIGH_CONFIDENCE",
   "LRP_raw": 0.3942630048552675,
+  "LRP_adjusted_experimental": true,
+  "lrp_doctrine": "Baseline LRP = pressure signal; LRP_adjusted (experimental) = pressure after restoration/capillary/hysteresis/observer modifiers.",
+  "loop_closure": {
+    "restoration_damper": 0.55,
+    "capillary_boost": 1.1353583836744503,
+    "hysteresis_boost": 1.1937904083569744,
+    "observer_boost": 1.022097859505148,
+    "LRP_adjusted_raw": 0.3004016074190185,
+    "delta_vs_baseline_LRP": -0.08544228533722786
+  },
   "lrp_contributions": {
     "T_a contribution": 0.1119898595179832,
     "Observer decay": 0.08418232192437346,
@@ -70,6 +91,23 @@
     "B_s": 0.3,
     "E_i": 1.1099667089836607,
     "rupture_pressure_score": 0.3329900126950982
+  },
+  "physics": {
+    "F_r": 0.6484811148035411,
+    "D_c": 0.4700057782178366,
+    "restoration_ratio": 1.6383582826611682,
+    "dissipation_score": 0.4700057782178366,
+    "A_micro": 0.7132291344901006,
+    "C_w": 0.5414335346978012,
+    "capillary_wave_score": 0.5414335346978012,
+    "field_regime": "COHERENT_MAINTENANCE_UNDER_STRESS",
+    "entropy_score": 0.589668198341333,
+    "equilibrium_field_strength": 0.727849666435474,
+    "deviation_from_equilibrium": 0.6156222239959233,
+    "historical_stress_memory": 0.4308972937096435,
+    "recursive_pressure_carryover": 0.8612792519085359,
+    "observer_feedback_score": 0.14731906336765352,
+    "effective_pressure": 0.45412212525304
   },
   "weekly_stance": {
     "stance_quadrant": "bullish / actionable",

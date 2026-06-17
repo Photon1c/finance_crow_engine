@@ -4,7 +4,7 @@
 # Rule: map local sensors → packet primitives; never redefine primitives here.
 
 canonical_source: TRPR/ontology/packet_ontology.yaml
-schema_version: "0.1.0"
+schema_version: "0.1.1"
 domain: market
 
 # Local sensor → sacred primitive / derived metric keys
@@ -33,8 +33,90 @@ mappings:
   LRP:
     derived_metric: latent_rupture_potential
     key: LRP
+    note: baseline pressure-driven rupture risk
+  LRP_adjusted:
+    derived_metric: latent_rupture_potential
+    key: LRP
+    note: experimental restoration-adjusted sibling metric
   LRP_regime:
     regimes: stable | pressure_building | pre_rupture | rupture_imminent
+  LRP_adjusted_regime:
+    regimes: stable | pressure_building | pre_rupture | rupture_imminent
+  F_r:
+    derived_metric: restoring_field_strength
+    key: F_r
+  D_c:
+    derived_metric: dissipation_capacity
+    key: D_c
+    primitive: dissipation
+  D_r:
+    note: local dissipation rate proxy (1 - D_c); distinct from D_c capacity
+  dissipation_score:
+    derived_metric: dissipation_capacity
+    key: D_c
+  restoration_ratio:
+    derived_metric: restoring_field_strength
+    key: F_r
+    note: ratio of F_r to pressure load
+  A_micro:
+    derived_metric: oscillation_amplitude
+    key: A_f
+    note: capillary micro-oscillation amplitude (not attractor field)
+  A_field:
+    note: local attractor field strength; maps to equilibrium attractor packets
+  wave_persistence:
+    primitive: coherence
+    packet_type: signal
+  C_w:
+    derived_metric: capillary_wave_score
+    key: C_w
+  capillary_wave_score:
+    derived_metric: capillary_wave_score
+    key: C_w
+  capillary_wave_regime:
+    note: FLAT_SURFACE | CAPILLARY_ACTIVITY | SURFACE_TENSION_STRESS | PRE_RUPTURE
+  capillary_absorption_state:
+    note: cross-link to capillary_engine macro absorption
+  H_s:
+    note: maps historical_stress_memory to hysteresis retention
+  O_i:
+    note: maps observer_feedback_score to observer interference
+  E_sys:
+    note: maps entropy_score to system entropy
+  IDI:
+    derived_metric: inward_drift_index
+    key: IDI
+  equilibrium_field_strength:
+    packet_example: vwap_attractor_packet
+    domain: market
+  gamma_attractor_strength:
+    packet_example: gamma_flip_packet
+    domain: market
+  wall_pinning_strength:
+    packet_example: gamma_flip_packet
+    domain: market
+  deviation_from_equilibrium:
+    packet_example: vwap_attractor_packet
+    domain: market
+  historical_stress_memory:
+    primitive: recursion
+    packet_type: pressure
+  recursive_pressure_carryover:
+    primitive: recursion
+    packet_type: pressure
+  post_stress_sensitivity:
+    primitive: recursion
+    packet_type: pressure
+  entropy_score:
+    note: local E_sys proxy
+  observer_feedback_score:
+    note: local O_i proxy
+  effective_pressure:
+    derived_metric: latent_rupture_potential
+    key: LRP
+    note: pressure adjusted for observer blindspot
+  field_regime:
+    named_regimes: RESTORED_EQUILIBRIUM | ACTIVE_COMPENSATION | WEAKENING_RESTORATION | CAPILLARY_PRE_RUPTURE | ENTROPIC_DEGRADATION
   gamma_flip:
     packet_example: gamma_flip_packet
     domain: market
@@ -55,6 +137,10 @@ alerts:
   VWAP_DISLOCATION_EXPANDING: compression_rising
   PRESSURE_ACCELERATION_POSITIVE: compression_rising
   RUPTURE_IMMINENT_LRP: rupture_imminent_lrp
+  RESTORATION_FAILURE_LRP_ADJUSTED: rupture_imminent_lrp
+  WEAKENING_RESTORATION: weakening_restoration
+  CAPILLARY_PRE_RUPTURE: capillary_pre_rupture
+  ENTROPIC_DEGRADATION: entropic_degradation
 
 notes:
   cvd: >
@@ -63,3 +149,10 @@ notes:
   philosophy: >
     Complex systems do not fail equally for all observers.
     The system changes before most observers are capable of perceiving the change.
+  capillary_layers: >
+    capillary_engine.py = macro/mid absorption from CanopyEnto CSV.
+    capillary_wave_engine.py = local oscillatory instability near boundary.
+  physics_engines: >
+    restoration_field_engine, capillary_wave_engine, attractor_engine,
+    hysteresis_engine, entropy_engine, observer_feedback_engine, inward_drift_engine
+    map inward via pressure_field_physics; LRP_adjusted closes the loop in pressure_field_derivatives.

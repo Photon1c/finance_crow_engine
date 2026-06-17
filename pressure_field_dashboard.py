@@ -34,13 +34,18 @@ from data_loader import (
 )
 from pressure_field_derivatives import (
     DERIVATIVE_COLUMNS,
+    LRP_ADJUSTED_COLUMNS,
     LRP_CONTRIB_COLUMNS,
+    apply_lrp_loop_closure,
     build_lrp_debug_payload,
     compute_rate_of_change_alerts,
     enrich_pressure_derivatives,
     write_lrp_debug_json,
 )
-from pressure_field_schema import build_stable_snapshot, write_stable_snapshot_json
+from pressure_field_physics import PHYSICS_EXPORT_COLUMNS, enrich_pressure_physics
+from pressure_field_schema import LRP_DOCTRINE, build_stable_snapshot, write_stable_snapshot_json
+
+LRP_ADJUSTED_EXPERIMENTAL_LABEL = "LRP Adjusted (experimental)"
 
 DEFAULT_TICKER = "SPY"
 DEFAULT_LOOKBACK_DAYS = 120
@@ -77,7 +82,9 @@ PRESSURE_FIELD_EXPORT_COLUMNS = [
     "LRP_regime",
     "LRP_confidence",
     *LRP_CONTRIB_COLUMNS,
+    *LRP_ADJUSTED_COLUMNS,
     *DERIVATIVE_COLUMNS,
+    *PHYSICS_EXPORT_COLUMNS,
 ]
 
 OBSERVER_QUOTE = (
@@ -417,13 +424,18 @@ def _status_class(regime: str) -> str:
     warning = {"THRUST_LOSS", "DECEL_DOWN", "IMBALANCE_BUILDING", "AT_PHASE_BOUNDARY",
                "RUPTURE_CANDIDATE", "CONTAINMENT_STRESS", "LOW-CONFIDENCE CRUISE MODE"}
     danger = {"DISSIPATION_CASCADE", "SELL_FORCE_DOMINANT", "BELOW_FLIP_NEGATIVE_GAMMA",
-              "WAIT / PACKET BUFFERING", "RUPTURE_IMMINENT", "PRE_RUPTURE"}
+              "WAIT / PACKET BUFFERING", "RUPTURE_IMMINENT", "PRE_RUPTURE",
+              "ENTROPIC_DEGRADATION", "CAPILLARY_PRE_RUPTURE"}
     if regime in danger:
         return "status-danger"
     if regime in warning:
         return "status-warn"
     if regime in positive:
         return "status-good"
+    if regime in {"RESTORED_EQUILIBRIUM", "ACTIVE_COMPENSATION"}:
+        return "status-good"
+    if regime == "WEAKENING_RESTORATION":
+        return "status-warn"
     return "status-neutral"
 
 
@@ -484,6 +496,10 @@ def render_html_dashboard(
         "rupture": _series_tail(df["rupture_pressure_score"], chart_days),
         "T_a_norm": _series_tail(df["T_a_norm"], chart_days),
         "LRP": _series_tail(df["LRP"], chart_days),
+        "LRP_adjusted": _series_tail(df.get("LRP_adjusted", pd.Series(dtype=float)), chart_days),
+        "F_r": _series_tail(df["F_r"], chart_days),
+        "D_c": _series_tail(df["D_c"], chart_days),
+        "C_w": _series_tail(df["C_w"], chart_days),
     }
 
     latest_date = latest["Date"]
@@ -563,12 +579,48 @@ def render_html_dashboard(
         {
             "id": "lrp",
             "title": "Latent Rupture Potential",
-            "role": "Composite Pre-Rupture Score",
+            "role": "Pressure-Driven Rupture Risk (baseline)",
             "value": f"{latest.get('LRP', float('nan')):.3f}",
             "sub": f"{latest.get('LRP_regime', '')} · {latest.get('LRP_confidence', '')}",
             "detail": _format_lrp_contributions(latest),
             "color": "#ff4d6d",
             "status_class": _lrp_status_class(str(latest.get("LRP_regime", ""))),
+        },
+        {
+            "id": "lrp_adj",
+            "title": LRP_ADJUSTED_EXPERIMENTAL_LABEL,
+            "role": "Restoration-adjusted rupture risk — not canonical",
+            "value": f"{latest.get('LRP_adjusted', float('nan')):.3f}",
+            "sub": f"{latest.get('LRP_adjusted_regime', '') or '—'} · experimental",
+            "detail": (
+                f"delta vs baseline {float(latest.get('LRP_adjusted', 0)) - float(latest.get('LRP', 0)):+.3f} · "
+                f"damper {latest.get('restoration_damper', float('nan')):.2f}"
+            ),
+            "color": "#c9184a",
+            "status_class": _lrp_status_class(str(latest.get("LRP_adjusted_regime", ""))),
+        },
+        {
+            "id": "restoration",
+            "title": "Restoration Field",
+            "role": "F_r · Restoring Equilibrium Pull",
+            "value": f"{latest.get('F_r', float('nan')):.3f}",
+            "sub": str(latest.get("field_regime", "") or "—"),
+            "detail": (
+                f"Ratio {latest.get('restoration_ratio', float('nan')):.2f} · "
+                f"D_c {latest.get('D_c', float('nan')):.3f}"
+            ),
+            "color": "#4cc9f0",
+            "status_class": _status_class(str(latest.get("field_regime", ""))),
+        },
+        {
+            "id": "capillary",
+            "title": "Capillary Wave",
+            "role": "C_w · Micro-Oscillation Score",
+            "value": f"{latest.get('C_w', float('nan')):.3f}",
+            "sub": f"A_micro {latest.get('A_micro', float('nan')):.3f} · persist {latest.get('wave_persistence', float('nan')):.3f}",
+            "detail": f"Dissipation {latest.get('dissipation_score', float('nan')):.3f}",
+            "color": "#80ed99",
+            "status_class": _status_class(str(latest.get("field_regime", ""))),
         },
     ]
 
@@ -579,7 +631,11 @@ def render_html_dashboard(
         ("R_o", "Observational Resolution", f"{latest.get('R_o', float('nan')):.3f}", str(latest.get("observer_profile", ""))),
         ("T_v", "Visibility Horizon", f"{latest.get('T_v', float('nan'))} sessions", "T_v = f(R_o)"),
         ("rupture", "Rupture Pressure", f"{latest['rupture_pressure_score']:.4f}", str(latest.get("regime_label", ""))),
-        ("LRP", "Latent Rupture Potential", f"{latest.get('LRP', float('nan')):.3f}", str(latest.get("LRP_regime", ""))),
+        ("LRP", "Latent Rupture Potential (baseline)", f"{latest.get('LRP', float('nan')):.3f}", str(latest.get("LRP_regime", ""))),
+        ("LRP_adj", LRP_ADJUSTED_EXPERIMENTAL_LABEL, f"{latest.get('LRP_adjusted', float('nan')):.3f}", str(latest.get("LRP_adjusted_regime", ""))),
+        ("F_r", "Restoring Field", f"{latest.get('F_r', float('nan')):.3f}", str(latest.get("field_regime", ""))),
+        ("D_c", "Dissipation Capacity", f"{latest.get('D_c', float('nan')):.3f}", f"score {latest.get('dissipation_score', float('nan')):.3f}"),
+        ("C_w", "Capillary Wave", f"{latest.get('C_w', float('nan')):.3f}", f"ratio {latest.get('restoration_ratio', float('nan')):.2f}"),
     ]
 
     alerts_html = ""
@@ -889,6 +945,9 @@ def render_html_dashboard(
     sparkline('chart-volume', DATA.volume, '#39ff14', 'Volume');
     sparkline('chart-vwap', DATA.vwap, '#9d4edd', 'VWAP');
     sparkline('chart-lrp', DATA.LRP, '#ff4d6d', 'LRP');
+    sparkline('chart-lrp_adj', DATA.LRP_adjusted, '#c9184a', 'LRP adj (exp)');
+    sparkline('chart-restoration', DATA.F_r, '#4cc9f0', 'F_r');
+    sparkline('chart-capillary', DATA.C_w, '#80ed99', 'C_w');
 
     const composite = document.getElementById('chart-composite');
     if (composite) {{
@@ -960,6 +1019,22 @@ def write_pressure_field_report(
         else "- **LRP:** —",
         f"- **LRP_regime:** {latest.get('LRP_regime', '')}",
         "",
+        "## Restoration-Adjusted Rupture Risk — experimental (not canonical)",
+        "",
+        f"- **{LRP_ADJUSTED_EXPERIMENTAL_LABEL}:** {_finite_float(latest.get('LRP_adjusted'), default=float('nan')):.4f}"
+        if pd.notna(latest.get("LRP_adjusted"))
+        else f"- **{LRP_ADJUSTED_EXPERIMENTAL_LABEL}:** —",
+        f"- **LRP_adjusted_regime (experimental):** {latest.get('LRP_adjusted_regime', '')}",
+        f"- **restoration_damper:** {latest.get('restoration_damper', float('nan')):.4f}",
+        f"- **capillary_boost:** {latest.get('capillary_boost', float('nan')):.4f}",
+        f"- **hysteresis_boost:** {latest.get('hysteresis_boost', float('nan')):.4f}",
+        f"- **observer_boost:** {latest.get('observer_boost', float('nan')):.4f}",
+        "",
+        "_Baseline LRP = pressure-driven risk (canonical). "
+        f"{LRP_ADJUSTED_EXPERIMENTAL_LABEL} = compensatory-capacity-adjusted risk — do not treat as canonical._",
+        "",
+        f"_{LRP_DOCTRINE}_",
+        "",
         "## Rate-of-Change Snapshot",
         "",
         f"- **d_canopy_pressure:** {latest.get('d_canopy_pressure', 0.0):+.6f}",
@@ -991,6 +1066,16 @@ def write_pressure_field_report(
         lines.append("- None active")
 
     lines.extend([
+        "",
+        "## Restoration & Capillary Physics",
+        "",
+        f"- **F_r:** {latest.get('F_r', float('nan')):.4f}",
+        f"- **D_c / dissipation_score:** {latest.get('D_c', float('nan')):.4f}",
+        f"- **restoration_ratio:** {latest.get('restoration_ratio', float('nan')):.4f}",
+        f"- **A_micro:** {latest.get('A_micro', float('nan')):.4f}",
+        f"- **C_w / capillary_wave_score:** {latest.get('C_w', float('nan')):.4f}",
+        f"- **field_regime:** {latest.get('field_regime', '')}",
+        f"- **entropy_score:** {latest.get('entropy_score', float('nan')):.4f}",
         "",
         "## Gamma Flip",
         "",
@@ -1038,6 +1123,24 @@ def write_latest_json(
         "rate_of_change_alerts": alerts,
         "LRP_confidence": str(latest.get("LRP_confidence", "") or ""),
         "LRP_raw": _finite_float(latest.get("LRP_raw"), default=None),
+        "LRP_adjusted": _finite_float(latest.get("LRP_adjusted"), default=None),
+        "LRP_adjusted_regime": str(latest.get("LRP_adjusted_regime", "") or ""),
+        "LRP_adjusted_experimental": True,
+        "lrp_doctrine": LRP_DOCTRINE,
+        "loop_closure": {
+            "restoration_damper": _finite_float(latest.get("restoration_damper"), default=None),
+            "capillary_boost": _finite_float(latest.get("capillary_boost"), default=None),
+            "hysteresis_boost": _finite_float(latest.get("hysteresis_boost"), default=None),
+            "observer_boost": _finite_float(latest.get("observer_boost"), default=None),
+            "LRP_adjusted_raw": _finite_float(latest.get("LRP_adjusted_raw"), default=None),
+            "delta_vs_baseline_LRP": (
+                None
+                if latest.get("LRP_adjusted") is None or latest.get("LRP") is None
+                or pd.isna(latest.get("LRP_adjusted"))
+                or pd.isna(latest.get("LRP"))
+                else _finite_float(float(latest["LRP_adjusted"]) - float(latest["LRP"]))
+            ),
+        },
         "lrp_contributions": {
             "T_a contribution": _finite_float(latest.get("lrp_contrib_T_a"), default=None),
             "Observer decay": _finite_float(latest.get("lrp_contrib_observer"), default=None),
@@ -1062,6 +1165,23 @@ def write_latest_json(
             "B_s": _finite_float(latest.get("B_s"), default=None),
             "E_i": _finite_float(latest.get("E_i"), default=None),
             "rupture_pressure_score": _finite_float(latest.get("rupture_pressure_score"), default=None),
+        },
+        "physics": {
+            "F_r": _finite_float(latest.get("F_r"), default=None),
+            "D_c": _finite_float(latest.get("D_c"), default=None),
+            "restoration_ratio": _finite_float(latest.get("restoration_ratio"), default=None),
+            "dissipation_score": _finite_float(latest.get("dissipation_score"), default=None),
+            "A_micro": _finite_float(latest.get("A_micro"), default=None),
+            "C_w": _finite_float(latest.get("C_w"), default=None),
+            "capillary_wave_score": _finite_float(latest.get("capillary_wave_score"), default=None),
+            "field_regime": str(latest.get("field_regime", "") or ""),
+            "entropy_score": _finite_float(latest.get("entropy_score"), default=None),
+            "equilibrium_field_strength": _finite_float(latest.get("equilibrium_field_strength"), default=None),
+            "deviation_from_equilibrium": _finite_float(latest.get("deviation_from_equilibrium"), default=None),
+            "historical_stress_memory": _finite_float(latest.get("historical_stress_memory"), default=None),
+            "recursive_pressure_carryover": _finite_float(latest.get("recursive_pressure_carryover"), default=None),
+            "observer_feedback_score": _finite_float(latest.get("observer_feedback_score"), default=None),
+            "effective_pressure": _finite_float(latest.get("effective_pressure"), default=None),
         },
     }
     if pd.notna(latest.get("stance_quadrant")):
@@ -1131,6 +1251,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         gamma = compute_gamma_flip(option_df, spot)
         frame = enrich_pressure_derivatives(frame, gamma=gamma)
+        frame = enrich_pressure_physics(frame, gamma=gamma)
+        frame = apply_lrp_loop_closure(frame)
     except (FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -1185,13 +1307,25 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"  LRP: {latest['LRP']:.3f} (raw {latest.get('LRP_raw', float('nan')):.3f}) "
             f"({latest.get('LRP_regime', '')}, {latest.get('LRP_confidence', '')})"
         )
-        audit = lrp_debug.get("legacy_formula_audit", {})
-        if audit:
-            print(
-                f"  Legacy audit: ratio={audit.get('ratio_before_clamp')} "
-                f"numerator={audit.get('numerator_sum')} denominator={audit.get('denominator')} "
-                f"driver={audit.get('saturation_driver')}"
-            )
+    if pd.notna(latest.get("LRP_adjusted")):
+        delta = float(latest["LRP_adjusted"]) - float(latest.get("LRP", 0.0))
+        print(
+            f"  {LRP_ADJUSTED_EXPERIMENTAL_LABEL}: {latest['LRP_adjusted']:.3f} "
+            f"({latest.get('LRP_adjusted_regime', '')}, delta {delta:+.3f} vs baseline)"
+        )
+    if pd.notna(latest.get("F_r")):
+        print(
+            f"  Physics: F_r={latest['F_r']:.3f} D_c={latest.get('D_c', float('nan')):.3f} "
+            f"C_w={latest.get('C_w', float('nan')):.3f} "
+            f"field={latest.get('field_regime', '')}"
+        )
+    audit = lrp_debug.get("legacy_formula_audit", {})
+    if audit:
+        print(
+            f"  Legacy audit: ratio={audit.get('ratio_before_clamp')} "
+            f"numerator={audit.get('numerator_sum')} denominator={audit.get('denominator')} "
+            f"driver={audit.get('saturation_driver')}"
+        )
     if alerts:
         print(f"  Alerts: {', '.join(alerts)}")
     if args.open:

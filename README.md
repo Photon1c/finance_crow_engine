@@ -1,15 +1,19 @@
 # Finance Crow Engine
 
-# Recursive Trade Aggregator
+A replay and evaluation toolkit for options trade failures and market-state observation. Completed trades are treated as **trajectories** (not just P/L), stored as **lesson packets** in a ledger, and fed into recursive model weights over time. A parallel layer—the **Trading Logistics Driver**—scores trade paths using an autonomous-driving-style reward decomposition.
 
-A replay and evaluation toolkit for options trade failures. Completed trades are treated as **trajectories** (not just P/L), stored as **lesson packets** in a ledger, and fed into recursive model weights over time. A parallel layer—the **Trading Logistics Driver**—scores trade paths using an autonomous-driving-style reward decomposition.
+Market-state engines extend the stack:
 
-Two additional market-state engines extend the stack:
-
-- **CanopyEnto** — boundary containment stress and weekly **state-maturity** stance filtering (direction vs trade permission)
+- **CanopyEnto** — pressure-field observer: boundary containment stress, observer differential metrics, weekly stance filtering
 - **Capillary Engine** — microscopic noise absorption overlay during cruise mode
+- **Pressure Field Dashboard** — multi-sensor HTML dashboard with LRP and rate-of-change derivatives
+- **TRPR** — sacred packet ontology (`TRPR/ontology/packet_ontology.yaml`) shared across domains
 
 **Not a live trading system.** No broker API, no order execution. CSV replay and analysis only.
+
+> **LRP doctrine:** Baseline LRP = pressure signal; LRP_adjusted (experimental) = pressure after restoration/capillary/hysteresis/observer modifiers.
+
+> **For LLM / agent onboarding:** read [`summary.md`](summary.md) first — repo map, architecture, sacred ontology rules, and navigation guide.
 
 ---
 
@@ -18,9 +22,11 @@ Two additional market-state engines extend the stack:
 Use this tree as the map. Entry points are marked with ★.
 
 ```
-recursive_trade_aggregator/
+finance_crow_engine/
 │
-├── README.md                              ← navigation guide (this file)
+├── README.md                              ← human navigation guide (this file)
+├── summary.md                             ← LLM onboarding: architecture, file tree, rules
+├── archive/log.md                         ← conversation milestones and architecture shifts
 ├── recursive_trade_aggregator.code-workspace
 │
 ├── ★ recursive_trade_failure.py           ← main CLI: score failures, update weights, write reports
@@ -30,12 +36,26 @@ recursive_trade_aggregator/
 ├── ★ pressure_field_dashboard.py          ← HTML pressure-field dashboard (MACD/RSI/CVD/VWAP/gamma)
 ├── pressure_field_schema.py               ← stable latest JSON snapshot keys
 ├── pressure_field_derivatives.py          ← LRP, rate-of-change derivatives, alerts
+├── pressure_field_physics.py              ← orchestrates restoration/capillary/attractor/hysteresis/entropy
+├── restoration_field_engine.py            ← F_r restoring field, D_c dissipation capacity
+├── capillary_wave_engine.py               ← A_f oscillation amplitude, C_w capillary wave score
+├── attractor_engine.py                    ← equilibrium field strength, deviation
+├── hysteresis_engine.py                   ← stress memory, recursive pressure carryover
+├── entropy_engine.py                      ← long-term degradation (entropy_score)
+├── observer_feedback_engine.py            ← observer coupling / effective_pressure
+├── field_regime_engine.py                 ← sacred named field regimes
 ├── config/pressure_ontology.yaml          ← market domain mapping (references sacred ontology)
 ├── TRPR/                                  ← Temporal Relational Packet Reconstructor root
 │   └── ontology/
 │       ├── packet_ontology.yaml           ← SACRED shared packet vocabulary
 │       ├── ONTOLOGY_CHARTER.md            ← drift prevention charter
 │       └── packet_ontology_loader.py      ← optional read-only loader
+│
+├── tests/                                 ← unit tests (pressure field + sacred ontology + physics)
+│   ├── test_pressure_field.py
+│   ├── test_pressure_field_physics.py
+│   ├── test_lrp_loop_closure.py
+│   └── test_packet_ontology.py
 │
 ├── data_loader.py                         ← shared stock + option CSV loading
 ├── recursive_weight_engine.py             ← JSON weight load/save, packet scoring, online updates
@@ -50,21 +70,6 @@ recursive_trade_aggregator/
 │
 ├── misc_packet_visualizer.py              ← six-phase pipeline animation (MP4/GIF)
 ├── disposition_ring_toss.py               ← standalone pygame demo (unrelated metaphor)
-│
-├── agentearth/                            ← separate 3D agent / chat server (not trade pipeline)
-│   ├── serve.py                           ← local dev server + NVIDIA chat proxy
-│   ├── admin_genie.py
-│   ├── index.html
-│   ├── agent_earth.js
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── underthehood/
-│       ├── nvidia_api.py
-│       ├── nvidia_client.js
-│       ├── earth_controls.js
-│       ├── space_controls.js
-│       ├── camera_intro.js
-│       └── iss.js
 │
 ├── outputs/                               ← generated artifacts (safe to regenerate)
 │   ├── recursive_packets_{TICKER}.csv     ← packet ledger
@@ -112,7 +117,6 @@ F:/inputs/
 | Run full market-state stack | CanopyEnto → Capillary | see [Quick start](#quick-start) |
 | Animate the failure pipeline | `misc_packet_visualizer.py` (via flag) | `python recursive_trade_failure.py --csv --visual` |
 | Run the ring-toss pygame demo | `disposition_ring_toss.py` | `python disposition_ring_toss.py` |
-| Serve Agent Earth locally | `agentearth/serve.py` | `python agentearth/serve.py` |
 
 ### I want to understand a pipeline
 
@@ -155,6 +159,7 @@ data_loader.py → canopyento_boundary_engine.py
 pressure_field_dashboard.py (parallel read — uses stock + option CSV directly)
                       ├── MACD, RSI, CVD proxy, Volume, VWAP, gamma flip
                       ├── LRP (Latent Rupture Potential) + rate-of-change derivatives
+                      ├── physics layer: F_r, D_c, A_f, C_w, field_regime (via pressure_field_physics)
                       ├── merges CanopyEnto boundary + observer differential metrics
                       └── outputs/pressure_field_*.{html,csv,md,json}
 ```
@@ -249,14 +254,21 @@ Both `pressure_field_latest_{TICKER}.json` and `canopyento_weekly_stance_{TICKER
 
 | Variable | Meaning |
 |----------|---------|
-| **LRP** | Composite pre-rupture score in [0, 1]: normalized sum of T_a, observer blindspot, gamma/vwap/cvd pressures divided by boundary stability + volume absorption capacity. |
-| **LRP_regime** | `STABLE` (<0.30) · `PRESSURE_BUILDING` · `PRE_RUPTURE` · `RUPTURE_IMMINENT` (≥0.85) |
+| **LRP** | Latent Rupture Potential — weighted pre-rupture score in [0, 1] (**canonical pressure signal**). Raw components are summed with mild absorption dampening, then mapped through a sigmoid. |
+| **LRP_regime** | `STABLE` (<0.30) · `PRESSURE_BUILDING` · `PRE_RUPTURE` · `RUPTURE_IMMINENT` (≥0.85) — ranges from sacred `TRPR/ontology/packet_ontology.yaml` |
+| **LRP_adjusted** | **Experimental** — restoration-adjusted sibling metric. Same sigmoid calibration applied after restoration/capillary/hysteresis/observer modifiers. **Do not treat as canonical.** |
 
 **Rate-of-change derivatives** (first row defaults to 0.0): `d_macd_pressure`, `d_rsi_energy`, `d_cvd_force`, `d_volume_energy`, `d_vwap_attractor_distance`, `d_gamma_flip_distance`, `d_canopy_pressure`, `d_observability_R_o`, `d_visibility_horizon_T_v`, plus `dd_canopy_pressure`, `dd_observability_R_o`, `dd_coherence_proxy`.
 
 **CVD note:** CVD in this stack is a **signed-volume proxy** (close direction × volume), not tick-true cumulative volume delta.
 
-Shared vocabulary hook (no inference engine yet): `config/pressure_ontology.yaml`
+**Ontology layers**
+
+| Layer | Path | Role |
+|-------|------|------|
+| Sacred ontology | `TRPR/ontology/packet_ontology.yaml` | Shared packet primitives — do not drift |
+| Domain mapping | `config/pressure_ontology.yaml` | Market sensors → sacred primitives (references only) |
+| Charter | `TRPR/ontology/ONTOLOGY_CHARTER.md` | Drift-prevention rules |
 
 ### Recursive failure pipeline
 
@@ -283,7 +295,6 @@ Shared vocabulary hook (no inference engine yet): `config/pressure_ontology.yaml
 | File | Role |
 |------|------|
 | **`disposition_ring_toss.py`** | Standalone pygame visualization (criminal-justice case-flow metaphor). Unrelated to the trade aggregator pipeline. |
-| **`agentearth/`** | Separate 3D agent/chat web app with NVIDIA proxy. Not part of the trade failure or logistics driver workflows. |
 
 ---
 
@@ -417,10 +428,15 @@ Core ideas:
 
 ---
 
+## Tests
+
+```powershell
+python -m unittest tests.test_pressure_field tests.test_packet_ontology tests.test_pressure_field_physics tests.test_lrp_loop_closure -v
+```
+
 ## Dependencies
 
 - Python 3.11+
-- `numpy`, `pandas`, `matplotlib` (visualizer)
+- `numpy`, `pandas`, `matplotlib` (visualizer), `pyyaml` (TRPR ontology loader)
 - Optional: `ffmpeg` on PATH for reliable MP4/GIF export
 - Optional: `pygame` for `disposition_ring_toss.py`
-- Optional: `agentearth/requirements.txt` for the Agent Earth server

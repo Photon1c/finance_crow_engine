@@ -3,7 +3,7 @@
 
 metadata:
   project: "Temporal Relational Packet Reconstructor"
-  schema_version: "0.1.0"
+  schema_version: "0.1.1"
   purpose: "Shared vocabulary for packet-based pressure, transition, and rupture analysis."
 
 packet:
@@ -94,6 +94,22 @@ derived_metrics:
     key: "T_a"
     description: "Second derivative of pressure-state transition."
     range: [-1.0, 1.0]
+  restoring_field_strength:
+    key: "F_r"
+    description: "Strength of the field pulling a system back toward equilibrium."
+    range: [0.0, 1.0]
+  dissipation_capacity:
+    key: "D_c"
+    description: "System capacity to absorb and release packet pressure without rupture."
+    range: [0.0, 1.0]
+  oscillation_amplitude:
+    key: "A_f"
+    description: "Micro-oscillation amplitude of capillary-scale disturbances."
+    range: [0.0, 1.0]
+  capillary_wave_score:
+    key: "C_w"
+    description: "Composite capillary wave instability score from amplitude and persistence."
+    range: [0.0, 1.0]
 
 regimes:
   stable:
@@ -104,6 +120,23 @@ regimes:
     range: [0.60, 0.85]
   rupture_imminent:
     range: [0.85, 1.0]
+
+named_regimes:
+  restored_equilibrium:
+    key: "RESTORED_EQUILIBRIUM"
+    description: "Restoring field dominates; pressure load remains low."
+  active_compensation:
+    key: "ACTIVE_COMPENSATION"
+    description: "System actively dissipating pressure while compensation fields remain strong."
+  weakening_restoration:
+    key: "WEAKENING_RESTORATION"
+    description: "Restoring field strength is declining; equilibrium pull is weakening."
+  capillary_pre_rupture:
+    key: "CAPILLARY_PRE_RUPTURE"
+    description: "Capillary wave score elevated; micro-instability precedes macro rupture."
+  entropic_degradation:
+    key: "ENTROPIC_DEGRADATION"
+    description: "Long-horizon entropy rising; system coherence degrading over time."
 
 domains:
   market:
@@ -146,6 +179,12 @@ alerts:
     severity: high
   rupture_imminent_lrp:
     severity: critical
+  weakening_restoration:
+    severity: medium
+  capillary_pre_rupture:
+    severity: high
+  entropic_degradation:
+    severity: medium
 
 implementation_notes:
   - "Keep this file small and stable."
