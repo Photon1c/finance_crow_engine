@@ -238,3 +238,30 @@ notes:
       note: combined temporal comparability score
     data_quality_confidence:
       note: pressure metric confidence modifier from chain health
+  rupture_propagation:
+    source: pilot_upgrade.md
+    execution_regime:
+      labels: TYPE_I_DISTRIBUTED_EXECUTION | TYPE_II_COLLECTIVE_EXECUTION | TYPE_IIb_INTERRUPTED_EXECUTION | TYPE_III_REFLEXIVE_COLLECTIVE_EXECUTION | TYPE_IV_DISSIPATION_TRANSITION
+      note: Aerotrader collective execution process state
+    synchronization_coefficient:
+      note: volume/CVD/T_a alignment proxy for collective execution trigger
+    persistence_decay_rate:
+      key: P_d
+      note: rate at which cascade loses self-propagating momentum
+    cascade_energy:
+      note: magnitude of active self-reinforcing directional pressure
+    persistence_half_life:
+      key: P_h
+      note: estimated bars until dissipation dominates
+    restoration_coefficient:
+      key: R_c
+      note: bounce recovery relative to prior impulse; distinct from sacred F_r
+    restoration_reentry_probability:
+      note: probability opposing flow halts directional persistence
+    interpretive_latency:
+      key: I_l
+      note: post-event ambiguity delaying consensus resolution
+    hold_position_score:
+      note: pilot hold framework — sync rising, CVD divergence, weak restoration
+    reduce_exposure_score:
+      note: pilot reduce framework — P_d rising, bounce symmetry, acceleration stall

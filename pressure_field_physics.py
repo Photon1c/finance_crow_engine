@@ -19,6 +19,7 @@ from entropy_engine import compute_entropy
 from field_regime_engine import compute_field_regimes
 from hysteresis_engine import compute_hysteresis
 from elastic_rebound_engine import ELASTIC_REBOUND_EXPORT_COLUMNS, compute_elastic_rebound
+from rupture_propagation_engine import RUPTURE_PROPAGATION_EXPORT_COLUMNS, compute_rupture_propagation
 from inward_drift_engine import compute_inward_drift
 from observer_feedback_engine import compute_observer_feedback
 from restoration_field_engine import compute_restoration_field
@@ -63,6 +64,7 @@ PHYSICS_EXPORT_COLUMNS = (
     "field_regime",
     "d_F_r",
     *ELASTIC_REBOUND_EXPORT_COLUMNS,
+    *RUPTURE_PROPAGATION_EXPORT_COLUMNS,
 )
 
 
@@ -89,4 +91,5 @@ def enrich_pressure_physics(
         frame["observer_state_coupling"] = 0.0
     frame = compute_field_regimes(frame)
     frame = compute_elastic_rebound(frame, gamma=gamma)
+    frame = compute_rupture_propagation(frame)
     return frame

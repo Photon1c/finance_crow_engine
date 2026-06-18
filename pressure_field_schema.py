@@ -65,7 +65,26 @@ STABLE_ELASTIC_SNAPSHOT_KEYS = (
     "observability_gap_score",
 )
 
-STABLE_SNAPSHOT_KEYS = STABLE_CORE_SNAPSHOT_KEYS + STABLE_EXTENDED_SNAPSHOT_KEYS + STABLE_ELASTIC_SNAPSHOT_KEYS
+STABLE_PROPAGATION_SNAPSHOT_KEYS = (
+    "execution_regime",
+    "synchronization_coefficient",
+    "persistence_decay_rate",
+    "cascade_energy",
+    "persistence_half_life",
+    "restoration_coefficient",
+    "restoration_reentry_probability",
+    "interpretive_latency",
+    "dissipation_onset_flag",
+    "hold_position_score",
+    "reduce_exposure_score",
+)
+
+STABLE_SNAPSHOT_KEYS = (
+    STABLE_CORE_SNAPSHOT_KEYS
+    + STABLE_EXTENDED_SNAPSHOT_KEYS
+    + STABLE_ELASTIC_SNAPSHOT_KEYS
+    + STABLE_PROPAGATION_SNAPSHOT_KEYS
+)
 
 LRP_DOCTRINE = (
     "Baseline LRP = pressure signal; "
@@ -162,6 +181,17 @@ def build_stable_snapshot(
         "pressure_relocation_ratio": safe_float(latest.get("pressure_relocation_ratio")),
         "false_stability_flag": int(latest.get("false_stability_flag", 0) or 0),
         "observability_gap_score": safe_float(latest.get("observability_gap_score")),
+        "execution_regime": safe_str(latest.get("execution_regime")),
+        "synchronization_coefficient": safe_float(latest.get("synchronization_coefficient")),
+        "persistence_decay_rate": safe_float(latest.get("persistence_decay_rate")),
+        "cascade_energy": safe_float(latest.get("cascade_energy")),
+        "persistence_half_life": safe_float(latest.get("persistence_half_life")),
+        "restoration_coefficient": safe_float(latest.get("restoration_coefficient")),
+        "restoration_reentry_probability": safe_float(latest.get("restoration_reentry_probability")),
+        "interpretive_latency": safe_float(latest.get("interpretive_latency")),
+        "dissipation_onset_flag": int(latest.get("dissipation_onset_flag", 0) or 0),
+        "hold_position_score": safe_float(latest.get("hold_position_score")),
+        "reduce_exposure_score": safe_float(latest.get("reduce_exposure_score")),
     }
     return {key: values[key] for key in STABLE_SNAPSHOT_KEYS}
 

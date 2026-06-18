@@ -44,8 +44,19 @@ from pressure_field_derivatives import (
 )
 from pressure_field_physics import PHYSICS_EXPORT_COLUMNS, enrich_pressure_physics
 from pressure_field_schema import LRP_DOCTRINE, build_stable_snapshot, write_stable_snapshot_json
+from rupture_propagation_engine import build_propagation_snapshot
 
 LRP_ADJUSTED_EXPERIMENTAL_LABEL = "LRP Adjusted (experimental)"
+
+PROPAGATION_NOTES = (
+    "TYPE I — distributed cruise: low LRP, stable restoration, no collective sync.",
+    "TYPE II — collective execution: synchronization spike with sharp displacement.",
+    "TYPE IIb — interrupted execution: high interpretive latency after failed restoration.",
+    "TYPE III — reflexive cascade: cascade energy persists through lower highs.",
+    "TYPE IV — dissipation: persistence decay rate rises as cascade energy fades.",
+)
+DEFAULT_RUP_PROP_JSON = "outputs/rupture_propagation_{ticker}.json"
+DEFAULT_RUP_PROP_MD = "outputs/rupture_propagation_{ticker}.md"
 
 ELASTIC_REBOUND_NOTES = (
     "Positive gamma may behave like a locked fault: surface volatility compresses "
@@ -730,6 +741,25 @@ def render_html_dashboard(
     <ul class="lrp-meta" style="margin-top:0.75rem;padding-left:1.2rem;">{elastic_notes_html}</ul>
   </section>
 """
+    propagation_notes_html = "".join(f"<li>{note}</li>" for note in PROPAGATION_NOTES)
+    propagation_panel = f"""
+  <section class="chart-panel">
+    <h2>Rupture Propagation</h2>
+    <p class="lrp-meta">
+      regime {latest.get('execution_regime', '—') or '—'} ·
+      sync {latest.get('synchronization_coefficient', float('nan')):.3f} ·
+      P_d {latest.get('persistence_decay_rate', float('nan')):.3f} ·
+      cascade {latest.get('cascade_energy', float('nan')):.3f}
+    </p>
+    <p class="lrp-meta">
+      R_c {latest.get('restoration_coefficient', float('nan')):.3f} ·
+      I_l {latest.get('interpretive_latency', float('nan')):.3f} ·
+      hold {latest.get('hold_position_score', float('nan')):.3f} ·
+      reduce {latest.get('reduce_exposure_score', float('nan')):.3f}
+    </p>
+    <ul class="lrp-meta" style="margin-top:0.75rem;padding-left:1.2rem;">{propagation_notes_html}</ul>
+  </section>
+"""
     if contrib_lines:
         lrp_contrib_html = f"""
         <table class="contrib-table">
@@ -906,6 +936,7 @@ def render_html_dashboard(
   {alerts_html}
 
   {elastic_panel}
+  {propagation_panel}
 
   <section class="chart-panel">
     <h2>Latent Rupture Potential (LRP)</h2>
@@ -1117,6 +1148,24 @@ def write_pressure_field_report(
         lines.append(f"- _{note}_")
     lines.extend([
         "",
+        "## Rupture Propagation",
+        "",
+        f"- **execution_regime:** {latest.get('execution_regime', '')}",
+        f"- **synchronization_coefficient:** {latest.get('synchronization_coefficient', float('nan')):.4f}",
+        f"- **persistence_decay_rate (P_d):** {latest.get('persistence_decay_rate', float('nan')):.4f}",
+        f"- **cascade_energy:** {latest.get('cascade_energy', float('nan')):.4f}",
+        f"- **persistence_half_life (P_h):** {latest.get('persistence_half_life', float('nan')):.1f}",
+        f"- **restoration_coefficient (R_c):** {latest.get('restoration_coefficient', float('nan')):.4f}",
+        f"- **restoration_reentry_probability:** {latest.get('restoration_reentry_probability', float('nan')):.4f}",
+        f"- **interpretive_latency (I_l):** {latest.get('interpretive_latency', float('nan')):.4f}",
+        f"- **hold_position_score:** {latest.get('hold_position_score', float('nan')):.4f}",
+        f"- **reduce_exposure_score:** {latest.get('reduce_exposure_score', float('nan')):.4f}",
+        "",
+    ])
+    for note in PROPAGATION_NOTES:
+        lines.append(f"- _{note}_")
+    lines.extend([
+        "",
         "## Gamma Flip",
         "",
         f"- **Flip strike:** {gamma.get('gamma_flip_strike')}",
@@ -1233,6 +1282,10 @@ def write_latest_json(
             "observability_gap_score": _finite_float(latest.get("observability_gap_score"), default=None),
             "notes": list(ELASTIC_REBOUND_NOTES),
         },
+        "rupture_propagation": {
+            **build_propagation_snapshot(latest),
+            "notes": list(PROPAGATION_NOTES),
+        },
     }
     if pd.notna(latest.get("stance_quadrant")):
         extras["weekly_stance"] = {
@@ -1271,6 +1324,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--open",
         action="store_true",
         help="Open generated HTML dashboard in the default browser",
+    )
+    parser.add_argument(
+        "--rup-prop-exp",
+        action="store_true",
+        dest="rup_prop_exp",
+        help="Write rupture propagation experiment JSON/MD (pilot_upgrade phase model)",
     )
     args = parser.parse_args(argv)
 
@@ -1335,6 +1394,21 @@ def main(argv: Optional[list[str]] = None) -> int:
     write_latest_json(
         latest, gamma, json_path, ticker=ticker, spot=spot, chain_date=chain_date, alerts=alerts
     )
+
+    if args.rup_prop_exp:
+        from rupture_propagation_experiment import write_rupture_propagation_experiment
+
+        rup_json = Path(DEFAULT_RUP_PROP_JSON.format(ticker=ticker))
+        rup_md = Path(DEFAULT_RUP_PROP_MD.format(ticker=ticker))
+        rup_payload = write_rupture_propagation_experiment(
+            frame, ticker=ticker, json_path=rup_json, md_path=rup_md
+        )
+        print(f"  RupProp JSON: {rup_json}")
+        print(f"  RupProp MD:   {rup_md}")
+        print(
+            f"  RupProp: regime={rup_payload['latest'].get('execution_regime') or 'unclassified'} "
+            f"| rec={rup_payload['decision']['recommendation']}"
+        )
 
     print(f"Pressure Field Dashboard complete for {ticker}")
     print(f"  HTML:   {html_path}")
