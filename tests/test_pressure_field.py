@@ -14,9 +14,9 @@ from canopyento_boundary_engine import (
     compute_observer_differential_metrics,
     compute_visibility_horizon,
 )
+from gamma_flip_engine import compute_gamma_flip, empty_gamma_snapshot
 from pressure_field_dashboard import (
     build_pressure_frame,
-    compute_gamma_flip,
     compute_macd,
     compute_rsi,
     compute_vwap_field,

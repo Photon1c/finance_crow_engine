@@ -6,6 +6,7 @@ import pandas as pd
 
 NAMED_FIELD_REGIMES = (
     "RESTORED_EQUILIBRIUM",
+    "SYNTHETIC_STABILITY",
     "ACTIVE_COMPENSATION",
     "WEAKENING_RESTORATION",
     "CAPILLARY_PRE_RUPTURE",
@@ -28,6 +29,9 @@ def classify_field_regime_row(row: pd.Series) -> str:
     recovery_incomplete = int(row.get("recovery_incomplete_flag", 0) or 0)
     h_s = float(row.get("H_s", row.get("historical_stress_memory", 0.0)) or 0.0)
 
+    hidden_reservoir = float(row.get("hidden_reservoir_pressure", 0.0) or 0.0)
+    false_stability = int(row.get("false_stability_flag", 0) or 0)
+
     if entropy >= 0.70:
         return "ENTROPIC_DEGRADATION"
     if c_w >= 0.65 and a_micro >= 0.45:
@@ -36,6 +40,19 @@ def classify_field_regime_row(row: pd.Series) -> str:
         return "COHERENT_MAINTENANCE_UNDER_STRESS"
     if wall_pin >= 0.70 and f_r >= 0.45 and lrp < 0.55:
         return "ACTIVE_COMPENSATION"
+    if (
+        lrp < 0.35
+        and f_r >= 0.60
+        and 0.25 <= d_c <= 0.70
+        and restoration_ratio >= 0.55
+        and (
+            a_micro >= 0.35
+            or hidden_reservoir >= 0.25
+            or false_stability == 1
+            or (wall_pin >= 0.45 and c_w >= 0.20)
+        )
+    ):
+        return "SYNTHETIC_STABILITY"
     if restoration_ratio >= 0.70 and lrp < 0.30:
         return "RESTORED_EQUILIBRIUM"
     if f_r >= 0.50 and d_c >= 0.50 and 0.30 <= lrp < 0.60:

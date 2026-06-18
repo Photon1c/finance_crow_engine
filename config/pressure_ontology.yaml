@@ -155,7 +155,18 @@ notes:
   physics_engines: >
     restoration_field_engine, capillary_wave_engine, attractor_engine,
     hysteresis_engine, entropy_engine, observer_feedback_engine, inward_drift_engine,
-    elastic_rebound_engine map inward via pressure_field_physics; LRP_adjusted closes the loop.
+    elastic_rebound_engine, rupture_propagation_engine map inward via pressure_field_physics; LRP_adjusted closes the loop.
+  synthetic_stability:
+    field_regime:
+      key: SYNTHETIC_STABILITY
+      note: visible equilibrium preserved through continuous compensatory dissipation
+  gamma_flip:
+    gamma_flip_reason:
+      note: explicit failure/success reason when flip strike is null or extrapolated
+    gamma_expiry_used:
+      note: single expiration slice used for flip (avoids multi-expiry aggregation bug)
+    gamma_chain_integrity:
+      note: HEALTHY | DEGRADED | INVALID from chain_integrity_engine
   elastic_rebound:
     elastic_strain_score:
       note: locked-fault strain proxy near gamma boundaries

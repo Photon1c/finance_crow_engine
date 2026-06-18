@@ -180,6 +180,8 @@ def _decision_scores(row: pd.Series) -> tuple[float, float]:
         + 0.15 * (1.0 - cascade)
         + 0.10 * (1.0 if abs(velocity) < 0.002 else 0.0)
     )
+    hold = float(np.nan_to_num(hold, nan=0.0))
+    reduce = float(np.nan_to_num(reduce, nan=0.0))
     return float(np.clip(hold, 0.0, 1.0)), float(np.clip(reduce, 0.0, 1.0))
 
 

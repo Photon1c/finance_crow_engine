@@ -299,106 +299,7 @@ def _vwap_regime_label(distance_pct: float) -> str:
     return "MEAN_REVERT_PULL"
 
 
-def empty_gamma_snapshot() -> dict[str, Any]:
-    """Safe null gamma snapshot when option chain is unavailable."""
-    return {
-        "gamma_flip_strike": None,
-        "distance_to_flip_pct": None,
-        "net_gamma_at_spot": None,
-        "gamma_regime": "NO_CHAIN",
-        "call_gamma_oi": 0.0,
-        "put_gamma_oi": 0.0,
-    }
-
-
-def compute_gamma_flip(
-    option_df: Optional[pd.DataFrame],
-    spot: float,
-) -> dict[str, Any]:
-    """Gamma flip level from option chain — phase boundary transition."""
-    if option_df is None or len(option_df) == 0:
-        return empty_gamma_snapshot()
-    if spot <= 0 or not np.isfinite(spot):
-        snapshot = empty_gamma_snapshot()
-        snapshot["gamma_regime"] = "INVALID_SPOT"
-        return snapshot
-
-    df = option_df.copy()
-    if "Strike" not in df.columns:
-        return empty_gamma_snapshot()
-
-    df["Strike"] = pd.to_numeric(df["Strike"], errors="coerce")
-    df = df[df["Strike"].notna()].copy()
-    if df.empty:
-        return empty_gamma_snapshot()
-
-    for col in ("Gamma", "Gamma.1", "Open Interest", "Open Interest.1"):
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col].map(parse_price), errors="coerce").fillna(0.0)
-        else:
-            df[col] = 0.0
-
-    df["call_gamma_oi"] = df["Gamma"] * df["Open Interest"]
-    df["put_gamma_oi"] = df["Gamma.1"] * df["Open Interest.1"]
-    grouped = (
-        df.groupby("Strike", as_index=False)
-        .agg(
-            call_gamma_oi=("call_gamma_oi", "sum"),
-            put_gamma_oi=("put_gamma_oi", "sum"),
-        )
-        .sort_values("Strike")
-        .reset_index(drop=True)
-    )
-    if grouped.empty:
-        return empty_gamma_snapshot()
-
-    total_oi = float(grouped["call_gamma_oi"].sum() + grouped["put_gamma_oi"].sum())
-    if total_oi <= 0:
-        snapshot = empty_gamma_snapshot()
-        snapshot["gamma_regime"] = "ZERO_OI"
-        return snapshot
-
-    grouped["net_gamma"] = grouped["call_gamma_oi"] - grouped["put_gamma_oi"]
-
-    flip_strike: Optional[float] = None
-    strikes = grouped["Strike"].values
-    net = grouped["net_gamma"].values
-    for idx in range(1, len(strikes)):
-        prev_net = float(net[idx - 1])
-        curr_net = float(net[idx])
-        if prev_net == 0.0:
-            flip_strike = float(strikes[idx - 1])
-            break
-        if prev_net * curr_net < 0:
-            weight = abs(prev_net) / (abs(prev_net) + abs(curr_net) + 1e-9)
-            flip_strike = float(strikes[idx - 1] * (1 - weight) + strikes[idx] * weight)
-            break
-
-    spot_idx = (grouped["Strike"] - spot).abs().idxmin()
-    net_at_spot = float(grouped.loc[spot_idx, "net_gamma"])
-    distance_pct: Optional[float] = None
-    if flip_strike is not None:
-        distance_pct = (spot - flip_strike) / spot * 100.0
-
-    if flip_strike is None:
-        regime = "FLIP_UNDEFINED"
-    elif distance_pct is not None and abs(distance_pct) < 0.5:
-        regime = "AT_PHASE_BOUNDARY"
-    elif distance_pct is not None and distance_pct > 0:
-        regime = "ABOVE_FLIP_POSITIVE_GAMMA"
-    elif distance_pct is not None:
-        regime = "BELOW_FLIP_NEGATIVE_GAMMA"
-    else:
-        regime = "FLIP_UNDEFINED"
-
-    return {
-        "gamma_flip_strike": flip_strike,
-        "distance_to_flip_pct": distance_pct,
-        "net_gamma_at_spot": net_at_spot,
-        "gamma_regime": regime,
-        "call_gamma_oi": float(grouped["call_gamma_oi"].sum()),
-        "put_gamma_oi": float(grouped["put_gamma_oi"].sum()),
-    }
+from gamma_flip_engine import compute_gamma_flip, empty_gamma_snapshot
 
 
 def build_pressure_frame(
@@ -442,7 +343,10 @@ def _status_class(regime: str) -> str:
     positive = {"TAKEOFF_BEGINNING", "ACCEL_UP", "PRESSURE_BUILDING", "BUY_FORCE_DOMINANT",
                 "HIGH_INJECTION", "ABOVE_FLIP_POSITIVE_GAMMA", "ACTIONABLE DIRECTIONAL STANCE"}
     warning = {"THRUST_LOSS", "DECEL_DOWN", "IMBALANCE_BUILDING", "AT_PHASE_BOUNDARY",
-               "RUPTURE_CANDIDATE", "CONTAINMENT_STRESS", "LOW-CONFIDENCE CRUISE MODE"}
+               "RUPTURE_CANDIDATE", "CONTAINMENT_STRESS", "LOW-CONFIDENCE CRUISE MODE",
+               "SYNTHETIC_STABILITY", "FLIP_UNDEFINED",
+               "AT_PHASE_BOUNDARY_EXTRAPOLATED", "ABOVE_FLIP_POSITIVE_GAMMA_EXTRAPOLATED",
+               "BELOW_FLIP_NEGATIVE_GAMMA_EXTRAPOLATED"}
     danger = {"DISSIPATION_CASCADE", "SELL_FORCE_DOMINANT", "BELOW_FLIP_NEGATIVE_GAMMA",
               "WAIT / PACKET BUFFERING", "RUPTURE_IMMINENT", "PRE_RUPTURE",
               "ENTROPIC_DEGRADATION", "CAPILLARY_PRE_RUPTURE"}
@@ -1171,6 +1075,9 @@ def write_pressure_field_report(
         f"- **Flip strike:** {gamma.get('gamma_flip_strike')}",
         f"- **Distance %:** {gamma.get('distance_to_flip_pct')}",
         f"- **Regime:** {gamma.get('gamma_regime')}",
+        f"- **Expiry used:** {gamma.get('gamma_expiry_used', '')}",
+        f"- **Method / reason:** {gamma.get('gamma_flip_method', '')} / {gamma.get('gamma_flip_reason', '')}",
+        f"- **Chain strikes:** {gamma.get('gamma_chain_strikes', 0)} · integrity: {gamma.get('gamma_chain_integrity', '')}",
         "",
         "## Observer Differential",
         "",
@@ -1249,6 +1156,22 @@ def write_latest_json(
             "volume_regime": str(latest.get("volume_regime", "") or ""),
             "vwap_regime": str(latest.get("vwap_regime", "") or ""),
             "gamma_regime": str(gamma.get("gamma_regime", "") or ""),
+            "gamma_flip_reason": str(gamma.get("gamma_flip_reason", "") or ""),
+            "gamma_flip_method": str(gamma.get("gamma_flip_method", "") or ""),
+            "gamma_expiry_used": str(gamma.get("gamma_expiry_used", "") or ""),
+            "gamma_chain_strikes": int(gamma.get("gamma_chain_strikes", 0) or 0),
+            "gamma_chain_integrity": str(gamma.get("gamma_chain_integrity", "") or ""),
+        },
+        "gamma_flip_diagnostics": {
+            "gamma_flip_strike": _finite_float(gamma.get("gamma_flip_strike"), default=None),
+            "distance_to_flip_pct": _finite_float(gamma.get("distance_to_flip_pct"), default=None),
+            "net_gamma_at_spot": _finite_float(gamma.get("net_gamma_at_spot"), default=None),
+            "gamma_regime": str(gamma.get("gamma_regime", "") or ""),
+            "gamma_flip_reason": str(gamma.get("gamma_flip_reason", "") or ""),
+            "gamma_flip_method": str(gamma.get("gamma_flip_method", "") or ""),
+            "gamma_expiry_used": str(gamma.get("gamma_expiry_used", "") or ""),
+            "gamma_chain_strikes": int(gamma.get("gamma_chain_strikes", 0) or 0),
+            "gamma_chain_integrity": str(gamma.get("gamma_chain_integrity", "") or ""),
         },
         "canopyento": {
             "B_s": _finite_float(latest.get("B_s"), default=None),
@@ -1358,7 +1281,16 @@ def main(argv: Optional[list[str]] = None) -> int:
             volume_window=args.volume_window,
             weekly_window=args.weekly_window,
         )
-        gamma = compute_gamma_flip(option_df, spot)
+        gamma = compute_gamma_flip(option_df, spot, chain_date=chain_date, ticker=ticker)
+        if gamma.get("gamma_flip_strike") is None and option_df is not None:
+            print(
+                f"Warning: gamma flip undefined for {ticker} "
+                f"(reason={gamma.get('gamma_flip_reason', 'unknown')}; "
+                f"expiry={gamma.get('gamma_expiry_used', '') or 'n/a'}; "
+                f"strikes={gamma.get('gamma_chain_strikes', 0)}; "
+                f"integrity={gamma.get('gamma_chain_integrity', '') or 'n/a'})",
+                file=sys.stderr,
+            )
         frame = enrich_pressure_derivatives(frame, gamma=gamma)
         frame = enrich_pressure_physics(frame, gamma=gamma)
         frame = apply_lrp_loop_closure(frame)

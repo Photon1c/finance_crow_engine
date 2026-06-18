@@ -113,6 +113,26 @@ class TestFieldRegimeClassification(unittest.TestCase):
         )
         self.assertEqual(classify_field_regime_row(row), "RESTORED_EQUILIBRIUM")
 
+    def test_synthetic_stability_regime(self):
+        row = pd.Series(
+            {
+                "restoration_ratio": 0.80,
+                "F_r": 0.72,
+                "D_c": 0.45,
+                "LRP": 0.22,
+                "C_w": 0.25,
+                "A_micro": 0.42,
+                "entropy_score": 0.35,
+                "d_F_r": 0.0,
+                "wall_pinning_strength": 0.55,
+                "recovery_incomplete_flag": 0,
+                "H_s": 0.15,
+                "hidden_reservoir_pressure": 0.30,
+                "false_stability_flag": 0,
+            }
+        )
+        self.assertEqual(classify_field_regime_row(row), "SYNTHETIC_STABILITY")
+
     def test_capillary_pre_rupture_regime(self):
         row = pd.Series(
             {
