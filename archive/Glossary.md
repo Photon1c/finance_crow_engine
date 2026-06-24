@@ -6,6 +6,264 @@ AEROTRADER / RUPTURE DYNAMICS GLOSSARY (WORKING DRAFT)
 
 -----------------------------------------------------------
 
+LAYER 1 — STABLE CORE (DO NOT MODIFY CASUALLY)
+
+-----------------------------------------------------------
+
+These concepts are recurring enough that they should become canon.
+
+Rupture Dynamics
+
+The study of how accumulated internal pressure crosses system
+
+thresholds, loses coherent maintenance, and propagates through
+
+linked execution pathways as visible displacement.
+
+Latent Pressure Accumulation
+
+The progressive build-up of directional or transactional pressure
+
+within a system before it manifests in observable price movement.
+
+Dissipation Capacity
+
+The rate at which a system can neutralize or metabolize incoming
+
+pressure without crossing into rupture or visible displacement.
+
+Recursive Pressure
+
+Pressure that, once released or partially expressed, generates
+
+conditions for further pressure release through feedback loops
+
+in execution, positioning, or interpretation.
+
+Coherent Maintenance
+
+A system's ability to preserve stable internal organization and
+
+contained behavior while absorbing ongoing incoming pressure.
+
+Transition State Instability
+
+A regime in which the system remains externally stable but internal
+
+metrics indicate weakening maintenance capacity and elevated
+
+rupture proximity.
+
+Critical Dependency Nodes
+
+Structural points in the execution or liquidity graph where failure,
+
+saturation, or decoupling disproportionately amplifies system-wide
+
+pressure propagation.
+
+Execution Decoupling
+
+A condition in which visible execution flow diverges from underlying
+
+pressure, positioning, or liquidity state — price action and process
+
+state no longer move in tight correspondence.
+
+Execution Decoupling Vortex (EDV)
+
+A localized transport anomaly in which externally observed system state
+
+remains coherent while internal transport efficiency collapses due to
+
+recursive recirculation of constrained resources.
+
+Formal:
+
+EDV = |S_o - S_e| · R_c
+
+Where:
+
+S_o = observed system state
+
+S_e = executable system state
+
+R_c = local recirculation coefficient
+
+Interpretation:
+
+Large EDV means the system looks healthy but transport has begun
+
+internally looping.
+
+Observability Gap
+
+The difference between externally visible system behavior and the
+
+true internal process state generating that behavior.
+
+Asymmetric Participation
+
+Uneven distribution of execution, liquidity provision, or risk
+
+bearing across participants such that apparent consensus or stability
+
+masks concentrated underlying exposure.
+
+Hidden Reservoir Pressure
+
+Directional or transactional pressure held in non-visible reservoirs
+
+— inventory, dark liquidity, deferred positioning, or internalized
+
+flow — that does not yet appear in price telemetry.
+
+False Stability
+
+Externally calm market behavior that persists while latent pressure,
+
+observability gaps, or maintenance thresholds indicate underlying
+
+instability.
+
+-----------------------------------------------------------
+
+LAYER 2 — EXPERIMENTAL CONCEPTS (STILL UNSTABLE)
+
+-----------------------------------------------------------
+
+These are promising but need compression/testing.
+
+Full discussion and open questions: archive/open_questions.md
+
+Civilizational Reactor
+
+A modeling frame treating large-scale systems as energy-processing
+
+reactors where dependency networks consume maintenance energy and
+
+dependency burden can exceed compensatory output.
+
+Dependency Waste
+
+Maintenance energy consumed sustaining dependencies whose productive
+
+contribution no longer justifies their upkeep cost.
+
+Local Entropy Rebellion
+
+Local nodes or subsystems that increase internal disorder while
+
+ceasing to contribute to global coherence.
+
+Runaway Subsystems
+
+Subsystems that redirect energy toward self-preservation rather than
+
+collective maintenance, accelerating local entropy growth.
+
+Observer Differential Theory
+
+Theory that rupture visibility varies by observer proximity to internal
+
+pressure variables — the system changes before most observers can
+
+perceive the change.
+
+Pressure Relocation Ratio
+
+Measure of how much accumulated pressure shifts between hidden
+
+reservoirs versus expressing as visible displacement.
+
+Defection Induced Rupture
+
+Rupture initiated when critical participants abandon coherent
+
+maintenance rather than by a single external catalyst.
+
+Collective Execution Theory
+
+Theoretical framework describing synchronized participant execution,
+
+its persistence, interruption, and reflexive cascade dynamics.
+
+Institutional Exhaust Signatures
+
+Downstream observable patterns suggesting institutional or process
+
+capacity exhaustion prior to full rupture.
+
+Latent Operational Entropy
+
+Hidden disorder accumulating in operational and procedural layers
+
+before it surfaces in visible outcomes.
+
+Thermodynamic Rebellion
+
+Resistance to entropy export or dissipation — subsystems or structures
+
+that block required pressure removal pathways.
+
+-----------------------------------------------------------
+
+LAYER 3 — IMPLEMENTED MODELS (GROUND TRUTH)
+
+-----------------------------------------------------------
+
+These are real systems already built.
+
+Full registry: archive/models.md
+
+TRER
+
+Temporal Relational Event Reconstructor — event-lineage predecessor
+
+to packet-based reconstruction.
+
+CanopyEnto
+
+Boundary containment stress and observer-differential pressure
+
+field observer.
+
+Capillary Engine
+
+Microscopic noise absorption overlay during cruise mode.
+
+Blackwing
+
+External dynamics / flight-behavior observer in the broader ecosystem.
+
+CiceroAgent
+
+Interpretation and rhetorical synthesis agent across observer outputs.
+
+OpenClaw Custodian Agents
+
+Autonomous maintenance ecology — custodian agents for repo and
+
+system upkeep.
+
+Temporal Relational Packet Reconstructor (TRPR)
+
+Sacred packet ontology and cross-domain vocabulary layer.
+
+Optionaut
+
+Options-domain research and execution-adjacent automation layer.
+
+Pressure Dashboard
+
+Multi-sensor HTML pressure-field dashboard with LRP and derivatives.
+
+Critical Dependency Node Engine
+
+Structural dependency graph analysis for high-leverage rupture nodes.
+
+-----------------------------------------------------------
+
 I. CORE MARKET MICROSTRUCTURE / EXECUTION TERMS
 
 -----------------------------------------------------------
@@ -429,6 +687,214 @@ Process Exhaust
 Observable outputs representing downstream consequence rather
 
 than underlying process.
+
+General Theory of Pressure Transport in Constrained Systems
+
+Definition:
+
+A unifying theoretical framework describing how pressure, energy,
+
+information, or force propagates through systems whose movement is
+
+restricted by structural boundaries, internal resistance, and limited
+
+dissipation pathways.
+
+Interpretation:
+
+All complex systems exist within constraints.
+
+When force is introduced into a constrained system, movement does not
+
+occur freely.
+
+Instead, force must:
+
+- propagate through available transport channels
+
+- encounter resistance from structural constraints
+
+- dissipate through available release pathways
+
+- accumulate when transport efficiency becomes impaired
+
+If pressure accumulates faster than dissipation occurs, instability
+
+emerges.
+
+Examples:
+
+Financial systems: capital attempting to move through limited
+
+liquidity
+
+Infrastructure systems: traffic congestion forming due to limited
+
+road capacity
+
+Biological systems: blood pressure rising in narrowed arteries
+
+Social systems: institutional burdens accumulating in bureaucratic
+
+bottlenecks
+
+Mechanical systems: heat building inside poorly ventilated engines
+
+Conceptual meaning:
+
+Systems do not fail because force exists.
+
+Systems fail when force cannot move efficiently through constrained
+
+pathways.
+
+Core principle:
+
+Pressure Accumulation > Dissipation Capacity → Instability
+
+Foundational statement:
+
+Every system under constraint becomes a transport problem.
+
+Capillary Wave Amplitude (A_c)
+
+Definition:
+
+The measurable magnitude of small surface disturbances generated when
+
+hidden internal pressure begins interacting with an observable system
+
+boundary.
+
+Interpretation:
+
+Before large-scale rupture occurs, systems often reveal subtle surface
+
+perturbations.
+
+These small disturbances indicate latent internal stress interacting
+
+with boundary conditions.
+
+Capillary wave amplitude measures the intensity of these early
+
+disturbances.
+
+The greater the amplitude, the more strongly internal pressure is
+
+interacting with the surface.
+
+Examples:
+
+Financial systems: repeated small price oscillations near major support
+
+Market microstructure: rapid bid/ask fluctuations without directional
+
+movement
+
+Mechanical systems: engine vibration before mechanical failure
+
+Structural systems: microscopic cracks appearing before fracture
+
+Social systems: minor public disturbances before large-scale unrest
+
+Biological systems: slight tissue swelling before major inflammation
+
+Interpretation scale:
+
+Low amplitude: pressure remains internally contained
+
+Medium amplitude: internal stress approaching boundary interaction
+
+High amplitude: pressure beginning active surface disturbance
+
+Conceptual meaning:
+
+Small surface disturbances reveal hidden internal pressure long before
+
+rupture becomes visible.
+
+Analogy:
+
+Tiny ripples appearing on water moments before a submerged object
+
+reaches the surface.
+
+Foundational statement:
+
+Systems whisper before they rupture.
+
+Dissipation Coefficient (D_c)
+
+Definition:
+
+A measure of a system's ability to absorb, redistribute, neutralize,
+
+or release internally accumulated pressure before instability or
+
+rupture occurs.
+
+Interpretation:
+
+No system can avoid pressure generation.
+
+The survival of a system depends not on avoiding pressure, but on how
+
+efficiently pressure can dissipate.
+
+High dissipation allows pressure to spread safely across the system.
+
+Low dissipation causes pressure to remain concentrated and accumulate
+
+locally.
+
+Related: Dissipation Capacity (Layer 1), Pressure Dissipation Capacity
+
+(Section II).
+
+Examples:
+
+Financial systems: liquidity absorbing large institutional orders
+
+without major price displacement
+
+Mechanical systems: cooling systems preventing engine overheating
+
+Biological systems: blood circulation distributing heat and metabolic
+
+stress
+
+Structural systems: flexible materials redistributing impact energy
+
+Social systems: institutions resolving grievances before unrest
+
+escalates
+
+Information systems: servers distributing workload before overload
+
+conditions develop
+
+High dissipation state:
+
+Pressure distributes broadly.
+
+Local stress concentrations remain low.
+
+The system self-stabilizes.
+
+Low dissipation state:
+
+Pressure remains localized.
+
+Stress concentrations increase rapidly.
+
+Failure probability rises.
+
+Conceptual meaning:
+
+Dissipation determines whether pressure becomes survivable or
+
+catastrophic.
 
 -----------------------------------------------------------
 
