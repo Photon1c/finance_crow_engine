@@ -72,29 +72,37 @@ state no longer move in tight correspondence.
 
 Execution Decoupling Vortex (EDV)
 
-A localized transport anomaly in which externally observed system state
+A transient market state in which significant execution pressure
 
-remains coherent while internal transport efficiency collapses due to
+(order flow imbalance, usually measured through CVD)
 
-recursive recirculation of constrained resources.
+fails to produce proportional price displacement.
 
-Formal:
+EDV indicates temporary decoupling between hidden market pressure
 
-EDV = |S_o - S_e| · R_c
-
-Where:
-
-S_o = observed system state
-
-S_e = executable system state
-
-R_c = local recirculation coefficient
+and visible market movement.
 
 Interpretation:
 
-Large EDV means the system looks healthy but transport has begun
+EDV is not a directional signal.
 
-internally looping.
+It indicates reduced confidence in immediate directional inference
+
+and suggests the presence of absorption, delayed continuation,
+
+or inventory transfer between large participants.
+
+Mathematically:
+
+EDV occurs when:
+
+|ΔCVD| >> |ΔP|
+
+or equivalently:
+
+ECR → 0
+
+where execution pressure is high but price displacement remains minimal.
 
 Observability Gap
 
@@ -896,6 +904,300 @@ Dissipation determines whether pressure becomes survivable or
 
 catastrophic.
 
+Extreme Value Theory (EVT)
+
+Core question:
+
+What happens in the tails of the distribution?
+
+Normal statistics studies:
+
+μ, σ
+
+EVT studies:
+
+P(X > x)
+
+Probability that an event exceeds a dangerous threshold.
+
+Example:
+
+100-year flood
+
+market crash
+
+bridge load failure
+
+catastrophic insurance payout
+
+Mathematically:
+
+M_n = max(X_1, X_2, ..., X_n)
+
+Analysis focuses exclusively on extremes.
+
+Framework translation:
+
+Rupture dynamics already invokes EVT when asking:
+
+When does pressure exceed dissipation capacity?
+
+Equivalent:
+
+P_accumulation > D_capacity
+
+leading to rupture.
+
+The operative concern is threshold exceedance.
+
+Percolation Theory
+
+Core question:
+
+When does connectivity through a system fail?
+
+Imagine a grid.
+
+Each node has probability:
+
+p
+
+of remaining connected.
+
+As nodes fail:
+
+Connectivity decreases.
+
+Eventually:
+
+Critical threshold reached.
+
+System fragments.
+
+Formal threshold:
+
+p_c
+
+critical connectivity probability.
+
+When:
+
+p < p_c
+
+global transport collapses.
+
+Example:
+
+Forest fire.
+
+Trees = connected nodes.
+
+As density rises:
+
+Fire suddenly spreads globally.
+
+Below threshold:
+
+Fire remains localized.
+
+Framework translation:
+
+Maps directly to:
+
+Recursive Pressure Fragmentation
+
+Central question:
+
+At what point do transport pathways degrade enough that pressure cannot
+
+propagate coherently?
+
+This is percolation dynamics.
+
+Disaster Modeling
+
+Broad umbrella.
+
+Usually combines:
+
+EVT
+
+percolation
+
+network theory
+
+stochastic simulation
+
+catastrophe modeling
+
+Bayesian inference
+
+Core question:
+
+What chain of failures transforms local disturbance into systemic
+
+catastrophe?
+
+Example: earthquake
+
+Initial event:
+
+Fault slips.
+
+EVT:
+
+How large is the rare event?
+
+P(Magnitude > 7)
+
+Percolation:
+
+Which infrastructure pathways fail?
+
+roads
+
+bridges
+
+hospitals
+
+power grid
+
+Disaster modeling:
+
+How do cascading failures propagate through dependent systems?
+
+Catastrophe Analysis Framework
+
+Layer 1 — EVT = Magnitude / Boundary Mathematics
+
+EVT is fundamentally asking:
+
+What is the probability of crossing dangerous thresholds?
+
+Mathematically:
+
+P(X > x)
+
+Questions:
+
+How extreme can the earthquake become?
+
+How severe can the market crash become?
+
+What is the maximum stress a bridge may encounter?
+
+This is scale analysis.
+
+Framework translation:
+
+How much pressure can accumulate?
+
+Layer 2 — Percolation Theory = Structural Topology
+
+Percolation asks:
+
+Once disturbance exists, what pathways allow propagation?
+
+Mathematically:
+
+p_c
+
+critical connectivity threshold.
+
+Questions:
+
+Can fire jump continuously through forest density?
+
+How connected are financial institutions?
+
+How many roads can fail before transport collapses?
+
+This is network analysis.
+
+Framework translation:
+
+Where can pressure move?
+
+Layer 3 — Disaster Modeling = Temporal Evolution Engine
+
+Disaster modeling asks:
+
+Once extreme disturbance enters a connected system, how does failure unfold
+
+over time?
+
+Questions:
+
+What fails first?
+
+What secondary systems fail next?
+
+Which failures amplify each other?
+
+How does local failure become systemic failure?
+
+This is not just a bridge.
+
+This is:
+
+dynamic cascade simulation.
+
+Framework translation:
+
+How does trapped pressure evolve once release begins?
+
+Pipeline:
+
+EVT
+
+↓
+
+Extreme pressure event emerges
+
+Percolation
+
+↓
+
+Determine available transport pathways
+
+Disaster Modeling
+
+↓
+
+Simulate temporal cascade propagation
+
+Mathematically:
+
+EVT
+
+Initial disturbance magnitude
+
+E_m
+
+Percolation
+
+Connectivity function
+
+C_n
+
+Disaster propagation
+
+Time evolution function
+
+∂F/∂t
+
+Combined:
+
+D_system = f(E_m, C_n, ∂_t F)
+
+Where:
+
+E_m = extreme event magnitude
+
+C_n = connectivity topology
+
+∂_t F = temporal failure propagation
+
 -----------------------------------------------------------
 
 VIII. PHILOSOPHICAL / GENERAL SYSTEM TERMS
@@ -907,6 +1209,126 @@ Observer Differential
 Difference between what is observed externally and what is
 
 actually occurring internally within the system.
+
+Differential State Intelligence (DSI)
+
+A system analysis framework in which intelligence emerges from measuring
+
+deviations between expected baseline system behavior and observed real-world
+
+behavior, allowing hidden internal structures, latent constraints, or
+
+unobservable forces to be inferred indirectly.
+
+Core principle:
+
+ΔS = S_expected − S_observed
+
+where:
+
+S_expected = predicted baseline system behavior under normal conditions
+
+S_observed = measured real-world system behavior
+
+ΔS = state differential containing hidden information
+
+Interpretation:
+
+The greater the deviation, the more likely hidden structural forces are
+
+influencing the system.
+
+First Law of Differential State Intelligence
+
+Intelligence ∝ |S_expected − S_observed|
+
+Meaning:
+
+The more accurately one can detect state deviation, the more accurately
+
+hidden structure can be inferred.
+
+Second Law of Differential State Intelligence
+
+Large Differential → Hidden Constraint
+
+Meaning:
+
+Large unexpected deviations imply invisible structural resistance somewhere
+
+inside the system.
+
+Third Law of Differential State Intelligence
+
+Persistent Differential → Structural Pathology
+
+Meaning:
+
+When deviations remain unresolved over time, the system contains deeper
+
+pathological transport conditions.
+
+DSI Progression Stages
+
+Stage 1 — Pressure Accumulation
+
+P_latent ↑
+
+Hidden stress increasing.
+
+(EVT phase)
+
+Stage 2 — Connectivity Degradation
+
+T_e ↓
+
+Transport efficiency decreases.
+
+(Percolation phase)
+
+Stage 3 — Local Pathology Formation
+
+Vortex Formation
+
+Pressure trapped locally.
+
+(Network degradation phase)
+
+Stage 4 — Critical Threshold
+
+P_accumulation > D_capacity
+
+Threshold exceeded.
+
+(EVT boundary crossing)
+
+Stage 5 — Rupture
+
+Σ_b ↑
+
+Equilibrium fails.
+
+(Disaster initiation)
+
+Stage 6 — Cascading Failure
+
+R_f ↑
+
+Recursive fragmentation.
+
+(Disaster propagation)
+
+Differential Information Intelligence
+
+Where:
+
+I_hidden ∝ 1 / P(E_observed)
+
+Meaning:
+
+The more improbable the observed response, the more hidden structural
+
+information becomes accessible.
 
 Recursive Observation
 
